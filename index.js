@@ -73,25 +73,27 @@
 73      );
 74    }
 75
-76    // ===== RESULT =====
-77    if (text.startsWith("RESULT")) {
-78      const result = text.split(" ")[1];
-79      if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
+76 // ===== RESULT =====
+77 if (text.startsWith("RESULT")) {
+78   const result = text.split(" ")[1];
+79   if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
 80
-81      const { win, lose } = calcResult(result);
+81   const summary = calcResult(result);
 82
-83      USERS = {};
-84      ALL_BETS = [];
-85      SYSTEM.OPEN = false;
-86
-87      return reply(
-88        token,
-89        `🎲 ผลออก: ${result}
-90 💰 ชนะ: ${win}
-91 💸 แพ้: ${lose}
-92 🔒 ปิดรอบแล้ว`
-93      );
-94    }
+83   let msg = `🎲 ผลออก: ${result}\n\n📊 สรุปเดิมพนัน\n`;
+84
+85   Object.keys(summary).forEach(uid => {
+86     if (!CREDITS[uid]) CREDITS[uid] = 0;
+87     CREDITS[uid] += summary[uid];
+88     msg += `• ${uid.slice(0,6)} : ${summary[uid]}\n`;
+89   });
+90
+91   USERS = {};
+92   ALL_BETS = [];
+93   SYSTEM.OPEN = false;
+94
+95   return reply(token, msg);
+96 }
 95
 96    // ===== CANCEL =====
 97    if (text === "DL") {
