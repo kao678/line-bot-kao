@@ -62,7 +62,25 @@ function handleEvent(event) {
     const total = ALL_BETS.reduce((sum, b) => sum + b.money, 0);
     return reply(token, `📊 สรุปรอบ\nจำนวนโพย: ${ALL_BETS.length}\nยอดรวม: ${total}`);
   }
+// ===== RESULT =====
+if (text.startsWith("RESULT")) {
+  const result = text.split(" ")[1];
+  if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
 
+  const { win, lose } = calcResult(result);
+
+  USERS = {};
+  ALL_BETS = [];
+  SYSTEM.OPEN = false;
+
+  return reply(
+    token,
+`🎲 ผลออก: ${result}
+💰 จ่าย: ${win}
+💸 กิน: ${lose}
+🔒 ปิดรอบแล้ว`
+  );
+}
   // ===== CANCEL =====
   if (text === "DL") {
     if (!USERS[userId]) return reply(token, "❌ ไม่มีโพย");
