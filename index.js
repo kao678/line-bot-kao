@@ -1,91 +1,161 @@
-ค1  require("dotenv").config();
- 2  const express = require("express");
- 3  const line = require("@line/bot-sdk");
- 4
- 5  const app = express();
- 6
- 7  const config = {
- 8    channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
- 9    channelSecret: process.env.LINE_CHANNEL_SECRET
-10  };
-11
-12  // ❗ ห้ามลบ
-13  const client = new line.Client(config);
-14
-15  // ===== SYSTEM DATA =====
-16  let SYSTEM = {
-17    OPEN: false,
-18    RATE: 1
-19  };
-20
-21  let USERS = {};
-22  let ALL_BETS = [];
-23  let CREDITS = {};
-24  // ===== WEBHOOK =====
-25  app.post("/webhook", line.middleware(config), (req, res) => {
-26    Promise.all(req.body.events.map(handleEvent))
-27      .then(() => res.status(200).end())
-28      .catch(err => {
-29        console.error(err);
-30        res.status(500).end();
-31      });
-32  });
-33
-34  // ===== MAIN HANDLER =====
-35  function handleEvent(event) {
-36    if (event.type !== "message") return Promise.resolve(null);
-37    if (event.message.type !== "text") return Promise.resolve(null);
-38
-39    const text = event.message.text.trim();
-40    const userId = event.source.userId;
-41    const token = event.replyToken;
-42
-43    // ===== ADMIN =====
-44    if (text === "O") {
-45      SYSTEM.OPEN = true;
-46      return reply(token, "🟢 เปิดรับแทงแล้ว");
-47    }
-48
-49    if (text === "CLOSE") {
-50      SYSTEM.OPEN = false;
-51      return reply(token, "🔴 ปิดรับแทงแล้ว");
-52    }
-53
-54    if (text.startsWith("RATE")) {
-55      SYSTEM.RATE = parseFloat(text.split(" ")[1]);
-56      return reply(token, `⚙ ตั้งค่าน้ำ ${SYSTEM.RATE}`);
-57    }
-58
-59    if (text === "RESET") {
-60      USERS = {};
-61      ALL_BETS = [];
-62      return reply(token, "♻ รีเซ็ตรอบเรียบร้อย");
-63    }
-64
-65    // ===== SUMMARY =====
-66    if (text === "SUMMARY") {
-67      const total = ALL_BETS.reduce((sum, b) => sum + b.money, 0);
-68      return reply(
-69        token,
-70        `📊 สรุปรอบ
-71 จำนวนโพย: ${ALL_BETS.length}
-72 ยอดรวม: ${total}`
-73      );
-74    }
-75
-76 // ===== RESULT =====
-if (!SYSTEM.OPEN && ALL_BETS.length === 0) {
-  return reply(token, "⚠️ รอบนี้สรุปไปแล้ว");
+const express = require("express");
+const line = require("@line/bot-sdk");
+
+const app = express();
+
+/* ===== LINE CONFIG ===== */
+const config = {
+  channelAccessToken: process.env.LINE_TOKEN,
+  channelSecret: process.env.LINE_SECRET,
+};
+
+const client = new line.Client(config);
+
+/* ===== SYSTEM STATE ===== */
+let SYSTEM = {
+  OPEN: false,
+};
+
+let USERS = {};      // { userId: { bets: [] } }
+let ALL_BETS = [];   // [{ userId, bet, money }]
+
+/* ===== WEBHOOK ===== */
+app.post("/webhook", line.middleware(config), (req, res) => {
+  Promise.all(req.body.events.map(handleEvent))
+    .then(() => res.sendStatus(200))
+    .catch(err => {
+      console.error(err);
+      res.sendStatus(500);
+    });
+});
+
+/* ===== MAIN HANDLER ===== */
+async function handleEvent(event) {
+  if (event.type !== "message" || event.message.type !== "text") {
+    return null;
+  }
+
+  const text = event.message.text.trim();
+  const userId = event.source.userId;
+  const token = event.replyToken;
+
+  /* ===== ADMIN ===== */
+  if (text === "O") {
+    SYSTEM.OPEN = true;
+    return reply(token, "🟢 เปิดรับแทงแล้ว");
+  }
+
+  if (text === "CLOSE") {
+    SYSTEM.OPEN = false;
+    return reply(token, "🔴 ปิดรับแทงแล้ว");
+  }
+
+  if (text === "RESET") {
+    USERS = {};
+    ALL_BETS = [];
+    SYSTEM.OPEN = false;
+    return reply(token, "♻️ รีเซ็ตรอบเรียบร้อย");
+  }
+
+  /* ===== SUMMARY (รวมยอด) ===== */
+  if (text === "SUMMARY") {
+    const total = ALL_BETS.reduce((sum, b) => sum + b.money, 0);
+    return reply(
+      token,
+      `📊 สรุปรอบ\nจำนวนโพย: ${ALL_BETS.length}\nยอดรวม: ${total}`
+    );
+  }
+
+  /* ===== RESULT ===== */
+  if (!SYSTEM.OPEN && ALL_BETS.length === 0 && text.startsWith("RESULT")) {
+    return reply(token, "⚠️ รอบนี้สรุปไปแล้ว");
+  }
+
+  if (text.startsWith("RESULT")) {
+    const result = text.split(" ")[1];
+    if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
+
+    const summary = calcSummaryByUser(result);
+
+    let msg = `🎲 ผลออก: ${result}\n\n📊 สรุปเดิมพนัน`;
+
+    Object.keys(summary).forEach(uid => {
+      const shortId = uid.slice(-5);
+      const amount = summary[uid];
+      const sign = amount >= 0 ? "+" : "";
+      msg += `\n• ${shortId} : ${sign}${amount}`;
+    });
+
+    USERS = {};
+    ALL_BETS = [];
+    SYSTEM.OPEN = false;
+
+    return reply(token, msg);
+  }
+
+  /* ===== CANCEL ===== */
+  if (text === "DL") {
+    if (!USERS[userId]) return reply(token, "❌ ไม่มีโพย");
+    USERS[userId].bets.forEach(b => {
+      ALL_BETS = ALL_BETS.filter(x => x !== b);
+    });
+    USERS[userId].bets = [];
+    return reply(token, "♻️ ยกเลิกโพยแล้ว");
+  }
+
+  /* ===== BETTING ===== */
+  if (text.includes("/")) {
+    if (!SYSTEM.OPEN) return reply(token, "❌ ปิดรับแทง");
+
+    const [bet, amt] = text.split("/");
+    const money = parseInt(amt);
+
+    if (isNaN(money) || money <= 0) {
+      return reply(token, "❌ รูปแบบแทงไม่ถูกต้อง");
+    }
+
+    if (!USERS[userId]) USERS[userId] = { bets: [] };
+
+    const betData = { userId, bet, money };
+    USERS[userId].bets.push(betData);
+    ALL_BETS.push(betData);
+
+    return reply(token, `🎯 รับโพยแล้ว\n${bet}/${money}`);
+  }
+
+  return reply(token, "❓ คำสั่งไม่ถูกต้อง");
 }
 
-77 if (text.startsWith("RESULT")) {
-  const result = text.split(" ")[1];
-  if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
+/* ===== CALC SUMMARY BY USER ===== */
+function calcSummaryByUser(result) {
+  const summary = {};
 
-  const summary = calcSummaryByUser(result);
+  ALL_BETS.forEach(b => {
+    if (!summary[b.userId]) summary[b.userId] = 0;
 
-  let msg = `🎲 ผลออก: ${result}\n\n📊 สรุปเดิมพนัน`;
+    if (b.bet === result) {
+      summary[b.userId] += b.money;
+    } else {
+      summary[b.userId] -= b.money;
+    }
+  });
 
+  return summary;
+}
+
+/* ===== REPLY ===== */
+function reply(token, text) {
+  return client.replyMessage(token, {
+    type: "text",
+    text,
+  });
+}
+
+/* ===== SERVER ===== */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("RUNNING ON PORT", PORT);
+});
   Object.keys(summary).forEach(uid => {
     const shortId = uid.slice(-5);
     const amount = summary[uid];
