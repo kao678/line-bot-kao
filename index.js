@@ -20,7 +20,7 @@
 20
 21  let USERS = {};
 22  let ALL_BETS = [];
-23
+23  let CREDITS = {};
 24  // ===== WEBHOOK =====
 25  app.post("/webhook", line.middleware(config), (req, res) => {
 26    Promise.all(req.body.events.map(handleEvent))
@@ -128,20 +128,20 @@
 128
 129 // ===== CALC RESULT =====
 130 function calcResult(result) {
-131   let win = 0;
-132   let lose = 0;
-133
-134   ALL_BETS.forEach(b => {
-135     if (b.bet === result) {
-136       win += b.money * SYSTEM.RATE;
-137     } else {
-138       lose += b.money;
-139     }
-140   });
-141
-142   return { win, lose };
-143 }
-144
+131   let summary = {};
+132
+133   ALL_BETS.forEach(b => {
+134     if (!summary[b.userId]) summary[b.userId] = 0;
+135
+136     if (b.bet === result) {
+137       summary[b.userId] += b.money * SYSTEM.RATE;
+138     } else {
+139       summary[b.userId] -= b.money;
+140     }
+141   });
+142
+143   return summary;
+144 }
 145 // ===== REPLY =====
 146 function reply(token, text) {
 147   return client.replyMessage(token, {
