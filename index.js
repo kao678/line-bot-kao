@@ -3,87 +3,274 @@ const express = require("express");
 const line = require("@line/bot-sdk");
 
 const app = express();
-
-/* ===== LINE CONFIG ===== */
 const config = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
-  channelSecret: process.env.LINE_CHANNEL_SECRET,
+  channelSecret: process.env.LINE_CHANNEL_SECRET
 };
 const client = new line.Client(config);
 
-const ADMIN_ID = process.env.ADMIN_ID;
+// ===== ADMIN =====
+const ADMIN_IDS = (process.env.ADMIN_IDS || "").split(",");
 
-/* ===== SYSTEM ===== */
+// ===== ROOMS =====
+let PLAY_ROOM_ID = null;
+let DEPOSIT_ROOM_ID = null;
+
+// ===== SYSTEM =====
 let SYSTEM = {
   OPEN: false,
+  RATE_LOSE: 0,
+  RATE_WIN: 0,
+  MIN: 1,
+  MAX: 999999,
+  FULL: 999999
 };
 
-let CURRENT_ROUND = {
-  bets: [],   // [{ userId, bet, amount }]
-};
+// ===== DATA =====
+let USERS = {};      // userId => { credit, bets: [] }
+let ALL_BETS = [];
+let LAST_RESULT = null;
 
-let ROUND_HISTORY = [];
-
-/* ===== WEBHOOK ===== */
-app.post("/webhook", line.middleware(config), async (req, res) => {
-  try {
-    await Promise.all(req.body.events.map(handleEvent));
-    res.end();
-  } catch (e) {
-    console.error(e);
-    res.status(500).end();
-  }
+// ===== SERVER =====
+app.post("/webhook", line.middleware(config), (req, res) => {
+  Promise.all(req.body.events.map(handleEvent))
+    .then(() => res.status(200).end())
+    .catch(err => {
+      console.error(err);
+      res.status(500).end();
+    });
 });
 
-/* ===== HANDLER ===== */
-async function handleEvent(event) {
-  if (event.type !== "message") return;
-  if (event.message.type !== "text") return;
+const isAdmin = (uid) => ADMIN_IDS.includes(uid);
 
+// ================= HANDLER =================
+function handleEvent(event) {
+  if (event.type !== "message" || event.message.type !== "text") return;
   const text = event.message.text.trim();
   const userId = event.source.userId;
-  const token = event.replyToken;
-  const isAdmin = userId === ADMIN_ID;
+  const replyToken = event.replyToken;
+  const roomId = event.source.groupId || event.source.roomId || null;
 
-  /* ===== ADMIN COMMAND ===== */
-  if (text === "O" && isAdmin) {
-    SYSTEM.OPEN = true;
-    CURRENT_ROUND = { bets: [] };
-    return reply(token, "🟢 เปิดรับเดิมพันแล้ว");
+  /* ===== AUTO SAVE ROOM ===== */
+  if (!PLAY_ROOM_ID && (text === "O" || text === "0") && isAdmin(userId)) {
+    PLAY_ROOM_ID = roomId;
+  }
+  if (!DEPOSIT_ROOM_ID && text.startsWith("N/") && isAdmin(userId)) {
+    DEPOSIT_ROOM_ID = roomId;
   }
 
-  if (text === "X" && isAdmin) {
-    SYSTEM.OPEN = false;
-    return reply(token, "🔴 ปิดรับเดิมพันแล้ว");
+  /* ===== ADMIN MENU ===== */
+  if (text === "MENU" && isAdmin(userId)) {
+    return client.replyMessage(replyToken, adminFlex());
   }
 
-  if (text === "RESET" && isAdmin) {
-    CURRENT_ROUND = { bets: [] };
-    return reply(token, "♻ รีรอบเรียบร้อย");
+  /* ===== SHOW ROOM ===== */
+  if (text === "ROOM" && isAdmin(userId)) {
+    return reply(replyToken,
+      `🏠 ROOM\nPLAY: ${PLAY_ROOM_ID || "-"}\nDEPOSIT: ${DEPOSIT_ROOM_ID || "-"}`
+    );
   }
 
-  /* ===== RESULT ===== */
-  if (text.startsWith("S") && isAdmin) {
-    const result = text.substring(1);
-    if (!result) return reply(token, "❌ ใช้: S123");
+  /* ===== ADMIN : PLAY ROOM ===== */
+  if (roomId === PLAY_ROOM_ID && isAdmin(userId)) {
+    if (text === "O" || text === "0") {
+      SYSTEM.OPEN = true;
+      return reply(replyToken, "🟢 เปิดรับแทงแล้ว");
+    }
+    if (text === "X") {
+      SYSTEM.OPEN = false;
+      return reply(replyToken, "🔴 ปิดรับแทงแล้ว");
+    }
+    if (text === "RESET") {
+      USERS = {};
+      ALL_BETS = [];
+      return reply(replyToken, "♻ รีเซ็ตรอบแล้ว");
+    }
+    if (text === "BACK" && LAST_RESULT) {
+      ALL_BETS = LAST_RESULT.bets;
+      LAST_RESULT = null;
+      return reply(replyToken, "⏪ ย้อนผลเรียบร้อย");
+    }
+    if (text === "REFUND") {
+      ALL_BETS.forEach(b => USERS[b.userId].credit += b.money);
+      ALL_BETS = [];
+      return reply(replyToken, "💸 คืนเงินเรียบร้อย");
+    }
+    if (text.startsWith("S")) {
+      const result = text.slice(1);
+      return calcResult(replyToken, result);
+    }
+  }
 
-    const summary = {};
+  /* ===== ADMIN : DEPOSIT ROOM ===== */
+  if (roomId === DEPOSIT_ROOM_ID && isAdmin(userId)) {
+    if (text.startsWith("N/")) SYSTEM.RATE_LOSE = parseFloat(text.split("/")[1]);
+    if (text.startsWith("NC/")) SYSTEM.RATE_WIN = parseFloat(text.split("/")[1]);
+    if (text.startsWith("MIN/")) SYSTEM.MIN = parseInt(text.split("/")[1]);
+    if (text.startsWith("MAX/")) SYSTEM.MAX = parseInt(text.split("/")[1]);
+    if (text.startsWith("FULL/")) SYSTEM.FULL = parseInt(text.split("/")[1]);
 
-    CURRENT_ROUND.bets.forEach(b => {
-      let win = 0;
+    if (text.match(/^X\w+\+\d+/)) {
+      const [uid, amt] = text.split("+");
+      USERS[uid] = USERS[uid] || { credit: 0, bets: [] };
+      USERS[uid].credit += parseInt(amt);
+      return reply(replyToken, `➕ เติม ${amt}`);
+    }
+    if (text.match(/^X\w+-\d+/)) {
+      const [uid, amt] = text.split("-");
+      USERS[uid] = USERS[uid] || { credit: 0, bets: [] };
+      USERS[uid].credit -= parseInt(amt);
+      return reply(replyToken, `➖ ถอน ${amt}`);
+    }
+    if (text.endsWith("CR")) {
+      const uid = text.split(" ")[0];
+      return reply(replyToken, `💰 เครดิต ${uid}: ${USERS[uid]?.credit || 0}`);
+    }
+  }
 
-      // เดี่ยว
-      if (b.bet.length === 1) {
-        win = b.bet === result ? b.amount : -b.amount;
+  /* ===== USER : PLAY ROOM ===== */
+  if (roomId === PLAY_ROOM_ID) {
+    if (text === "C") {
+      const u = USERS[userId];
+      return reply(replyToken, u ? `💰 เครดิต: ${u.credit}` : "ยังไม่มีเครดิต");
+    }
+    if (text === "DL" || text === "X") {
+      if (!USERS[userId]) return reply(replyToken, "ไม่มีโพย");
+      USERS[userId].bets.forEach(b => {
+        USERS[userId].credit += b.money;
+        ALL_BETS = ALL_BETS.filter(x => x !== b);
+      });
+      USERS[userId].bets = [];
+      return reply(replyToken, "♻ ยกเลิกโพยแล้ว");
+    }
+    if (text.includes("/")) {
+      if (!SYSTEM.OPEN) return reply(replyToken, "❌ ปิดรับแทง");
+      const [bet, amt] = text.split("/");
+      const money = parseInt(amt);
+      USERS[userId] = USERS[userId] || { credit: 0, bets: [] };
+
+      if (money < SYSTEM.MIN || money > SYSTEM.MAX)
+        return reply(replyToken, "❌ จำนวนเงินไม่ถูกต้อง");
+      if (USERS[userId].credit < money)
+        return reply(replyToken, "❌ เครดิตไม่พอ");
+
+      USERS[userId].credit -= money;
+      const betData = { userId, bet, money };
+      USERS[userId].bets.push(betData);
+      ALL_BETS.push(betData);
+
+      // 👉 Flex ใบรับโพย
+      return client.replyMessage(replyToken, receiptFlex(userId, bet, money, USERS[userId].credit));
+    }
+  }
+
+  return reply(replyToken, "❓ คำสั่งไม่ถูกต้อง");
+}
+
+/* ===== RESULT + FLEX SUMMARY ===== */
+function calcResult(token, result) {
+  const summary = {};
+  LAST_RESULT = { bets: [...ALL_BETS] };
+
+  ALL_BETS.forEach(b => {
+    let net = -b.money;
+    if (b.bet === result) {
+      net = b.money * (1 + SYSTEM.RATE_WIN / 100);
+      USERS[b.userId].credit += net;
+    }
+    summary[b.userId] = (summary[b.userId] || 0) + net;
+  });
+
+  ALL_BETS = [];
+  SYSTEM.OPEN = false;
+
+  return client.replyMessage(token, summaryFlex(result, summary));
+}
+
+/* ===== FLEX TEMPLATES ===== */
+function receiptFlex(uid, bet, money, credit) {
+  return {
+    type: "flex",
+    altText: "RECEIPT",
+    contents: {
+      type: "bubble",
+      styles: { header: { backgroundColor: "#111" }, body: { backgroundColor: "#000" } },
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [{ type: "text", text: "🧾 ใบรับโพย", color: "#ff3333", weight: "bold", align: "center" }]
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          { type: "text", text: `ผู้เล่น: ${uid.slice(-5)}`, color: "#fff" },
+          { type: "text", text: `โพย: ${bet}/${money}`, color: "#fff" },
+          { type: "text", text: `เครดิตคงเหลือ: ${credit}`, color: "#00ff88" }
+        ]
       }
+    }
+  };
+}
 
-      // ตอง / สเปเชียล (เช่น 111)
-      if (b.bet.length === 3 && new Set(b.bet).size === 1) {
-        win = b.bet === result ? b.amount * 10 : -b.amount;
+function summaryFlex(result, summary) {
+  return {
+    type: "flex",
+    altText: "SUMMARY",
+    contents: {
+      type: "bubble",
+      styles: { header: { backgroundColor: "#111" }, body: { backgroundColor: "#000" } },
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [{ type: "text", text: `🎲 ผลออก: ${result}`, color: "#ff3333", weight: "bold", align: "center" }]
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: Object.keys(summary).map(uid => ({
+          type: "text",
+          text: `• ${uid.slice(-5)} : ${summary[uid] >= 0 ? "+" : ""}${summary[uid]}`,
+          color: summary[uid] >= 0 ? "#00ff88" : "#ff5555"
+        }))
       }
+    }
+  };
+}
 
-      summary[b.userId] = (summary[b.userId] || 0) + win;
-    });
+function adminFlex() {
+  return {
+    type: "flex",
+    altText: "ADMIN MENU",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          { type: "text", text: "ADMIN MENU", weight: "bold", size: "lg" },
+          { type: "button", action: { type: "message", label: "เปิดรับแทง", text: "O" } },
+          { type: "button", action: { type: "message", label: "ปิดรับแทง", text: "X" } },
+          { type: "button", action: { type: "message", label: "ดู ROOM", text: "ROOM" } },
+          { type: "button", action: { type: "message", label: "ออกผล 1", text: "S1" } },
+          { type: "button", action: { type: "message", label: "ออกผล 2", text: "S2" } },
+          { type: "button", action: { type: "message", label: "ออกผล 3", text: "S3" } },
+          { type: "button", action: { type: "message", label: "ออกผล 4", text: "S4" } }
+        ]
+      }
+    }
+  };
+}
+
+function reply(token, text) {
+  return client.replyMessage(token, { type: "text", text });
+}
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("RUNNING", PORT));    });
 
     ROUND_HISTORY.push({
       result,
