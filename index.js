@@ -91,8 +91,21 @@ function handleEvent(event) {
 
     return reply(token, `🎯 รับโพยแล้ว\n${bet}/${money}`);
   }
+return reply(token, "❓ คำสั่งไม่ถูกต้อง");
+}
+function calcResult(result) {
+  let win = 0;
+  let lose = 0;
 
-  return reply(token, "❓ คำสั่งไม่ถูกต้อง");
+  ALL_BETS.forEach(b => {
+    if (b.bet === result) {
+      win += b.money * SYSTEM.RATE;
+    } else {
+      lose += b.money;
+    }
+  });
+
+  return { win, lose };
 }
 function reply(token, text) {
   return client.replyMessage(token, {
