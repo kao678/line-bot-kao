@@ -75,24 +75,25 @@
 75
 76 // ===== RESULT =====
 77 if (text.startsWith("RESULT")) {
-78   const result = text.split(" ")[1];
-79   if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
-80
-81   const summary = calcResult(result);
-82
-83   let msg = `🎲 ผลออก: ${result}\n\n📊 สรุปเดิมพนัน\n`;
-84
-85   Object.keys(summary).forEach(uid => {
-86     if (!CREDITS[uid]) CREDITS[uid] = 0;
-87     CREDITS[uid] += summary[uid];
-88     msg += `• ${uid.slice(0,6)} : ${summary[uid]}\n`;
-89   });
-90
-91   USERS = {};
-92   ALL_BETS = [];
-93   SYSTEM.OPEN = false;
-94
-95   return reply(token, msg);
+  const result = text.split(" ")[1];
+  if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
+
+  const summary = calcSummaryByUser(result);
+
+  let msg = `🎲 ผลออก: ${result}\n\n📊 สรุปเดิมพนัน`;
+
+  Object.keys(summary).forEach(uid => {
+    const shortId = uid.slice(-5);
+    const amount = summary[uid];
+    const sign = amount >= 0 ? "+" : "";
+    msg += `\n• ${shortId} : ${sign}${amount}`;
+  });
+
+  USERS = {};
+  ALL_BETS = [];
+  SYSTEM.OPEN = false;
+
+  return reply(token, msg);
 96 }
 95
 96    // ===== CANCEL =====
@@ -130,6 +131,21 @@
 128
 129 // ===== CALC RESULT =====
 130 function calcResult(result) {
+ function calcSummaryByUser(result) {
+  const summary = {};
+
+  ALL_BETS.forEach(b => {
+    if (!summary[b.userId]) summary[b.userId] = 0;
+
+    if (b.bet === result) {
+      summary[b.userId] += b.money * SYSTEM.RATE;
+    } else {
+      summary[b.userId] -= b.money;
+    }
+  });
+
+  return summary;
+ }
 131   let summary = {};
 132
 133   ALL_BETS.forEach(b => {
