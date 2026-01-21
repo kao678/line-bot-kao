@@ -1,4 +1,4 @@
-1  require("dotenv").config();
+ค1  require("dotenv").config();
  2  const express = require("express");
  3  const line = require("@line/bot-sdk");
  4
@@ -74,6 +74,10 @@
 74    }
 75
 76 // ===== RESULT =====
+if (!SYSTEM.OPEN && ALL_BETS.length === 0) {
+  return reply(token, "⚠️ รอบนี้สรุปไปแล้ว");
+}
+
 77 if (text.startsWith("RESULT")) {
   const result = text.split(" ")[1];
   if (!result) return reply(token, "❌ ใช้คำสั่ง: RESULT 1");
