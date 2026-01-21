@@ -15,7 +15,6 @@ let SYSTEM = {
   OPEN: false,
   RATE: 1
 };
-
 let USERS = {};
 let ALL_BETS = [];
 
@@ -43,10 +42,10 @@ function handleEvent(event) {
     return reply(token, "🟢 เปิดรับแทงแล้ว");
   }
 
-  if (text === "X") {
-    SYSTEM.OPEN = false;
-    return reply(token, "🔴 ปิดรับแทงแล้ว");
-  }
+ if (text === "CLOSE") {
+  SYSTEM.OPEN = false;
+  return reply(token, "🔴 ปิดรับแทงแล้ว");
+}
 
   if (text.startsWith("RATE")) {
     SYSTEM.RATE = parseFloat(text.split(" ")[1]);
@@ -60,7 +59,7 @@ function handleEvent(event) {
   }
 
   if (text === "SUMMARY") {
-    const total = ALL_BETS.reduce((s,b)=>s+b.money,0);
+    const total = ALL_BETS.reduce((sum, b) => sum + b.money, 0);
     return reply(token, `📊 สรุปรอบ\nจำนวนโพย: ${ALL_BETS.length}\nยอดรวม: ${total}`);
   }
 
