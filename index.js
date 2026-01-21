@@ -80,7 +80,7 @@ if (text.startsWith("RESULT")) {
 💸 กิน: ${lose}
 🔒 ปิดรอบแล้ว`
   );
-}
+
   // ===== CANCEL =====
   if (text === "DL") {
     if (!USERS[userId]) return reply(token, "❌ ไม่มีโพย");
