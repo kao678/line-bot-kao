@@ -139,7 +139,17 @@ async function handleEvent(event){
   const roomId = event.source.groupId || event.source.roomId || null;
 
   const user = getUser(uid);
-
+// ===== SHOW MY ID =====
+  if (text === "MYID") {
+    return reply(
+      token,
+`🆔 MY LINE USER ID
+━━━━━━━━━━━━━━
+${uid}
+━━━━━━━━━━━━━━
+📋 แตะค้างเพื่อคัดลอก`
+    );
+  }
   /* ===== AUTO SAVE ROOMS ===== */
   if(isAdmin(uid)){
     if(!PLAY_ROOM_ID && (text==="O" || text==="X")) PLAY_ROOM_ID = roomId;
