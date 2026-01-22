@@ -422,6 +422,6 @@ function settleRound(token, dice){
   BETS = [];
   reply(token, msg || "ไม่มีผู้ชนะ");
 }
-
+const PORT = process.env.PORT || 3000;
 /* ===== START ===== */
 app.listen(PORT, ()=>console.log("BOT READY"));
