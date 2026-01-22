@@ -83,7 +83,10 @@ function getUser(uid){
 
 function sumDice(d){ return d[0]+d[1]+d[2]; }
 function beanFromSum(sum){ return sum % 4 === 0 ? 4 : sum % 4; }
-
+// SCORE ตามรูป : มีแดง(1)=4 , ไม่มีแดง=3
+function calcScore(dice){
+  return dice.includes(1) ? 4 : 3;
+}
 /* ===== PAY LOGIC =====
  * รองรับ:
  * - เต็ง (1 ตัว): ออก 1/2/3 ลูก → x1/x2/x3 (รวมทุน)
