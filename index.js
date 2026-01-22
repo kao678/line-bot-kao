@@ -43,7 +43,7 @@ let USERS = {};
 
 let BETS = [];      // current round bets
 let LAST = null;    // last round snapshot for BACK
-let STATS = []; // เก็บสกอร์ย้อนหลัง (ล่าสุด 10 ตา)
+
 /* ===== VERIFY SIGNATURE ===== */
 function verifySignature(req){
   const sig = req.headers["x-line-signature"];
@@ -62,21 +62,7 @@ function reply(token, text){
     { headers:{ Authorization:`Bearer ${LINE_TOKEN}` } }
   ).catch(()=>{});
 }
-function replyFlex(token, flex){
-  return axios.post(
-    "https://api.line.me/v2/bot/message/reply",
-    {
-      replyToken: token,
-      messages: [flex]
-    },
-    {
-      headers:{
-        Authorization: `Bearer ${LINE_TOKEN}`,
-        "Content-Type": "application/json"
-      }
-    }
-  ).catch(()=>{});
-}
+
 /* ===== ROOT ===== */
 app.get("/", (_,res)=>res.status(200).send("BOT OK"));
 
@@ -97,10 +83,7 @@ function getUser(uid){
 
 function sumDice(d){ return d[0]+d[1]+d[2]; }
 function beanFromSum(sum){ return sum % 4 === 0 ? 4 : sum % 4; }
-// SCORE ตามรูป : มีแดง(1)=4 , ไม่มีแดง=3
-function calcScore(dice){
-  return dice.includes(1) ? 4 : 3;
-}
+
 /* ===== PAY LOGIC =====
  * รองรับ:
  * - เต็ง (1 ตัว): ออก 1/2/3 ลูก → x1/x2/x3 (รวมทุน)
@@ -108,69 +91,6 @@ function calcScore(dice){
  * - ตองระบุ (เช่น 111): x100 (รวมทุน)
  * - สูง/ต่ำ (H/L): x1 (รวมทุน) | ตองกิน
  */
-function buildBetReceiptFlex({ name, avatar, bet, amount, credit, uid }) {
-  return {
-    type: "flex",
-    altText: "✅ รับโพยแล้ว",
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "horizontal",
-        spacing: "md",
-        paddingAll: "12px",
-        backgroundColor: "#0B0B0B",
-        contents: [
-
-          /* ===== AVATAR ===== */
-          {
-            type: "image",
-            url: avatar || "https://cdn-icons-png.flaticon.com/512/147/147144.png",
-            size: "sm",
-            aspectRatio: "1:1",
-            aspectMode: "cover",
-            cornerRadius: "50px"
-          },
-
-          /* ===== INFO ===== */
-          {
-            type: "box",
-            layout: "vertical",
-            spacing: "xs",
-            contents: [
-              {
-                type: "text",
-                text: name || "NONAME",
-                color: "#00B0FF",
-                weight: "bold",
-                size: "md"
-              },
-              {
-                type: "text",
-                text: bet,
-                color: "#FFFFFF",
-                size: "sm"
-              },
-              {
-                type: "text",
-                text: `คงเหลือ ${credit.toLocaleString()} บ.`,
-                color: "#4CAF50",
-                size: "sm"
-              },
-              {
-                type: "text",
-                text: `ID: ${uid.slice(-6)}`,
-                color: "#888888",
-                size: "xs"
-              }
-            ]
-          }
-        ]
-      }
-    }
-  };
-}
 function calcWin(bet, amt, dice){
   const [a,b,c] = dice;
   const sum = sumDice(dice);
@@ -219,17 +139,7 @@ async function handleEvent(event){
   const roomId = event.source.groupId || event.source.roomId || null;
 
   const user = getUser(uid);
-// ===== SHOW MY ID =====
-  if (text === "MYID") {
-    return reply(
-      token,
-`🆔 MY LINE USER ID
-━━━━━━━━━━━━━━
-${uid}
-━━━━━━━━━━━━━━
-📋 แตะค้างเพื่อคัดลอก`
-    );
-  }
+
   /* ===== AUTO SAVE ROOMS ===== */
   if(isAdmin(uid)){
     if(!PLAY_ROOM_ID && (text==="O" || text==="X")) PLAY_ROOM_ID = roomId;
@@ -264,8 +174,7 @@ ${uid}
         u.credit -= p.win;
         u.credit += p.amount;
       });
-      STATS.shift();
-LAST = null;
+      LAST = null;
       return reply(token,"⏪ ย้อนผลเรียบร้อย");
     }
     if(/^S\d{3}$/.test(text)){
@@ -362,35 +271,20 @@ LAST = null;
       if(user.credit<amt) return reply(token,"❌ เครดิตไม่พอ");
 
       user.credit -= amt;
-BETS.push({ uid, bet, amount: amt });
+      BETS.push({ uid, bet, amount:amt });
+      return reply(token,`✅ รับ ${bet}/${amt}\nคงเหลือ ${user.credit}`);
+    }
+  }
+}
 
-return replyFlex(
-  token,
-  buildBetReceiptFlex({
-    name: user.name || "NONAME",
-    avatar: user.avatar,
-    bet: `${bet}/${amt}`,
-    amount: amt,
-    credit: user.credit,
-    uid
-  })
-);
-}   // ✅ ปิด if รับโพยตรงนี้
-    
 /* ===== SETTLE ROUND ===== */
 function settleRound(token, dice){
   CONFIG.OPEN = false;
 
   const sum = sumDice(dice);
   const bean = beanFromSum(sum);
-  const score = calcScore(dice);   // ← ใส่บรรทัดนี้
-  STATS.unshift(score);
-  if (STATS.length > 10) STATS.pop();
+
   let msg = `🎲 ปิดรอบ\nผลเต๋า ${dice.join(" + ")} = ${sum}\nผลถั่ว : ${bean}\n\n`;
-  msg += score === 4 ? "🟥 สกอร์ 4\n" : "🟨 สกอร์ 3\n";
-  msg += "\n📊 สถิติย้อนหลัง\n";
-  msg += STATS.map(s => s === 4 ? "🟥" : "🟨").join(" ");
-  msg += "\n";
   const payouts = [];
 
   BETS.forEach(b=>{
@@ -418,9 +312,10 @@ function settleRound(token, dice){
     }
   });
 
-  LAST = { dice, payouts, score };
+  LAST = { dice, payouts };
   BETS = [];
   reply(token, msg || "ไม่มีผู้ชนะ");
 }
+
 /* ===== START ===== */
 app.listen(PORT, ()=>console.log("BOT READY"));
