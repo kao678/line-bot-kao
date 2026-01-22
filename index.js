@@ -1,6 +1,6 @@
 /**************************************
  * LINE BOT – HILO / OPEN THUA (#U CORE)
- * Single file, Anti-502
+ * Single file, Anti-502 (FIXED)
  **************************************/
 const express = require("express");
 const crypto = require("crypto");
@@ -61,9 +61,6 @@ function reply(token, text){
   ).catch(()=>{});
 }
 
-/* ===== ROOT ===== */
-app.get("/", (_,res)=>res.send("BOT OK"));
-
 /* ===== WEBHOOK ===== */
 app.post("/webhook",(req,res)=>{
   res.sendStatus(200);
@@ -74,12 +71,11 @@ app.post("/webhook",(req,res)=>{
 /* ===== HELPERS ===== */
 function getUser(uid){
   if(!USERS[uid]){
-    USERS[uid]={ credit:0, name:"", blocked:false, playCount:0, history:[] };
+    USERS[uid]={ credit:0, blocked:false, playCount:0, history:[] };
   }
   return USERS[uid];
 }
 const sumDice = d => d[0]+d[1]+d[2];
-const beanFromSum = s => s%4===0?4:s%4;
 
 /* ===== PAY LOGIC ===== */
 function calcWin(bet, amt, dice){
@@ -123,39 +119,35 @@ async function handleEvent(event){
   const roomId=event.source.groupId||event.source.roomId||null;
   const user=getUser(uid);
 
-  /* save rooms */
+  /* auto save rooms */
   if(isAdmin(uid)){
-    if(!PLAY_ROOM_ID&&(text==="O"||text==="X")) PLAY_ROOM_ID=roomId;
-    if(!DEPOSIT_ROOM_ID&&(text.startsWith("N/")||text.startsWith("NC/"))) DEPOSIT_ROOM_ID=roomId;
+    if(!PLAY_ROOM_ID && (text==="O"||text==="X")) PLAY_ROOM_ID=roomId;
+    if(!DEPOSIT_ROOM_ID && (text.startsWith("N/")||text.startsWith("NC/"))) DEPOSIT_ROOM_ID=roomId;
   }
 
   /* ===== ADMIN – PLAY ROOM ===== */
-  if(isAdmin(uid)&&roomId===PLAY_ROOM_ID){
+  if(isAdmin(uid) && roomId===PLAY_ROOM_ID){
 
     if(/^PAY\/\d+\/\d+$/.test(text)){
-      const[,w,l]=text.split("/");
-      CONFIG.PAY_WIN=+w;
-      CONFIG.PAY_LOSE=+l;
-      return reply(token,`⚙️ ตั้ง PAY ${w}/${l}`);
+      const [,w,l]=text.split("/");
+      CONFIG.PAY_WIN=Number(w);
+      CONFIG.PAY_LOSE=Number(l);
+      return reply(token,`⚙️ ตั้ง PAY จ่าย ${w} ต่อ / เสีย ${l} ต่อ`);
     }
 
     if(text==="O"){ CONFIG.OPEN=true; BETS=[]; return reply(token,"🟢 เปิดรับเดิมพัน"); }
     if(text==="X"){ CONFIG.OPEN=false; return reply(token,"🔴 ปิดรับเดิมพัน"); }
     if(text==="RESET"){ BETS=[]; return reply(token,"♻️ รีรอบ"); }
 
-    if(text==="REFUND"){
-      BETS.forEach(b=>getUser(b.uid).credit+=b.amount);
-      BETS=[]; return reply(token,"💸 คืนยอด");
-    }
-
     if(text==="BACK"){
-      if(!LAST) return reply(token,"❌ ไม่มีผล");
+      if(!LAST) return reply(token,"❌ ไม่มีผลให้ย้อน");
       LAST.payouts.forEach(p=>{
         const u=getUser(p.uid);
         u.credit-=p.win;
         u.credit+=p.amount;
       });
-      LAST=null; return reply(token,"⏪ ย้อนผล");
+      LAST=null;
+      return reply(token,"⏪ ย้อนผลเรียบร้อย");
     }
 
     if(/^S\d{3}$/.test(text)){
@@ -167,11 +159,15 @@ async function handleEvent(event){
   /* ===== PLAYER ===== */
   if(roomId===PLAY_ROOM_ID){
     if(text==="C") return reply(token,`💰 เครดิต ${user.credit}`);
+
     if(/^([HL]|\d{1,3})\/\d+$/.test(text)){
       if(!CONFIG.OPEN) return reply(token,"❌ ปิดรับแทง");
-      const[bet,a]=text.split("/"); const amt=+a;
+      const[bet,a]=text.split("/");
+      const amt=Number(a);
       if(user.credit<amt) return reply(token,"❌ เครดิตไม่พอ");
-      user.credit-=amt; BETS.push({uid,bet,amount:amt});
+
+      user.credit-=amt;
+      BETS.push({uid,bet,amount:amt});
       return reply(token,`✅ รับ ${bet}/${amt}`);
     }
   }
@@ -180,11 +176,13 @@ async function handleEvent(event){
 /* ===== SETTLE ===== */
 function settleRound(token,dice){
   CONFIG.OPEN=false;
-  let msg=`🎲 ${dice.join("+")}\n`;
+  let msg=`🎲 ผล ${dice.join("+")}\n`;
   const payouts=[];
+
   BETS.forEach(b=>{
-    let win=calcWin(b.bet,b.amount,dice);
     const u=getUser(b.uid);
+    const win=calcWin(b.bet,b.amount,dice);
+
     if(win>0){
       u.credit+=win;
       payouts.push({uid:b.uid,amount:b.amount,win});
@@ -195,9 +193,10 @@ function settleRound(token,dice){
       msg+=`✖ ${b.bet} -${lose}\n`;
     }
   });
+
   LAST={dice,payouts};
   BETS=[];
-  reply(token,msg);
+  reply(token,msg||"ไม่มีผู้ชนะ");
 }
 
 /* ===== START ===== */
