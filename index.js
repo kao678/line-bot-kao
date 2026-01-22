@@ -187,7 +187,8 @@ ${uid}
         u.credit -= p.win;
         u.credit += p.amount;
       });
-      LAST = null;
+      STATS.shift();
+LAST = null;
       return reply(token,"⏪ ย้อนผลเรียบร้อย");
     }
     if(/^S\d{3}$/.test(text)){
@@ -301,6 +302,9 @@ function settleRound(token, dice){
   if (STATS.length > 10) STATS.pop();
   let msg = `🎲 ปิดรอบ\nผลเต๋า ${dice.join(" + ")} = ${sum}\nผลถั่ว : ${bean}\n\n`;
   msg += score === 4 ? "🟥 สกอร์ 4\n" : "🟨 สกอร์ 3\n";
+  msg += "\n📊 สถิติย้อนหลัง\n";
+  msg += STATS.map(s => s === 4 ? "🟥" : "🟨").join(" ");
+  msg += "\n";
   const payouts = [];
 
   BETS.forEach(b=>{
