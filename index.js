@@ -43,7 +43,7 @@ let USERS = {};
 
 let BETS = [];      // current round bets
 let LAST = null;    // last round snapshot for BACK
-
+let STATS = []; // เก็บสกอร์ย้อนหลัง (ล่าสุด 10 ตา)
 /* ===== VERIFY SIGNATURE ===== */
 function verifySignature(req){
   const sig = req.headers["x-line-signature"];
