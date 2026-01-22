@@ -96,7 +96,21 @@ function calcWin(bet, amt, dice){
   const sum = sumDice(dice);
   const counts = {};
   dice.forEach(x=>counts[x]=(counts[x]||0)+1);
+// ===== กติกาพิเศษ =====
 
+  // 456 → จ่าย 25 ต่อ
+  if(bet === "456"){
+    if(dice.includes(4) && dice.includes(5) && dice.includes(6)){
+      return amt * 26; // 25 ต่อ + ทุน
+    }
+  }
+
+  // 666 → จ่าย 100 ต่อ
+  if(bet === "666"){
+    if(dice[0]===6 && dice[1]===6 && dice[2]===6){
+      return amt * 101; // 100 ต่อ + ทุน
+    }
+  }
   // สูง/ต่ำ
   if(bet === "H"){
     if(!isTriple(dice) && sum>=11 && sum<=17) return amt*2;
@@ -302,13 +316,16 @@ function settleRound(token, dice){
       payouts.push({ uid:b.uid, amount:b.amount, win });
       msg += `✔ ${b.bet}/${b.amount} +${win}\n`;
     }else{
-      if(CONFIG.waterLose>0){
-        const fee = Math.floor(b.amount*CONFIG.waterLose/100);
-        // ฝั่งเสีย หักต๋ง (ไม่คืน)
-        msg += `✖ ${b.bet}/${b.amount} เสีย\n`;
-      }else{
-        msg += `✖ ${b.bet}/${b.amount}\n`;
-      }
+  const u = getUser(b.uid);
+
+  const totalLose = b.amount * 3;          // เสีย 3 ต่อ
+  const extraLose = totalLose - b.amount;  // หักเพิ่มอีก 2 ต่อ
+
+  u.credit -= extraLose;
+  u.playCount++;
+  u.history.push(`${b.bet}/${b.amount} -${totalLose}`);
+
+  msg += `✖ ${b.bet}/${b.amount} เสีย ${totalLose}\n`;
     }
   });
 
