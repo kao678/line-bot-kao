@@ -129,6 +129,11 @@ function calcWin(bet, amt, dice){
   return 0;
 }
 
+// ===== SHOW MY ID =====
+if (text === "MYID") {
+  return reply(token, `🆔 YOUR ID:\n${uid}`);
+}
+
 /* ===== EVENT HANDLER ===== */
 async function handleEvent(event){
   if(event.type!=="message" || event.message.type!=="text") return;
@@ -139,21 +144,12 @@ async function handleEvent(event){
   const roomId = event.source.groupId || event.source.roomId || null;
 
   const user = getUser(uid);
-const user = getUser(uid);
-
-/* ===== SHOW ROOM STATUS ===== */
+// ===== SHOW ROOM STATUS =====
 if (isAdmin(uid) && text === "ROOM") {
   let msg = "🏠 ROOM STATUS\n━━━━━━━━━━━━━━\n";
   msg += `🎮 ห้องเล่น\n${PLAY_ROOM_ID || "ยังไม่ตั้ง"}\n\n`;
   msg += `💰 ห้องฝาก\n${DEPOSIT_ROOM_ID || "ยังไม่ตั้ง"}\n━━━━━━━━━━━━━━`;
   return reply(token, msg);
-}
-
-/* ===== AUTO SAVE ROOMS ===== */
-if(isAdmin(uid)){
-  if(!PLAY_ROOM_ID && (text==="O" || text==="X")) PLAY_ROOM_ID = roomId;
-  if(!DEPOSIT_ROOM_ID && (text.startsWith("N/") || text.startsWith("NC/")))
-    DEPOSIT_ROOM_ID = roomId;
 }
   /* ===== AUTO SAVE ROOMS ===== */
   if(isAdmin(uid)){
