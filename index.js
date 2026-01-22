@@ -298,6 +298,7 @@ function settleRound(token, dice){
   const bean = beanFromSum(sum);
   const score = calcScore(dice);   // ← ใส่บรรทัดนี้
   let msg = `🎲 ปิดรอบ\nผลเต๋า ${dice.join(" + ")} = ${sum}\nผลถั่ว : ${bean}\n\n`;
+  msg += score === 4 ? "🟥 สกอร์ 4\n" : "🟨 สกอร์ 3\n";
   const payouts = [];
 
   BETS.forEach(b=>{
