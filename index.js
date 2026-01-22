@@ -35,7 +35,9 @@ let CONFIG = {
   MIN: 1,
   MAX: 999999,
   FULL: 999999,
-  withdrawOpen: true
+  withdrawOpen: true,
+  PAY_WIN: 1,   // ✅ จ่ายกี่ต่อ (ค่าเริ่มต้น)
+  PAY_LOSE: 3   // ✅ เสียกี่ต่อ (ค่าเริ่มต้น)
 };
 
 let USERS = {}; 
@@ -156,8 +158,52 @@ async function handleEvent(event){
   }
 
   /* ===== ADMIN – PLAY ROOM ===== */
-  if(isAdmin(uid) && roomId === PLAY_ROOM_ID){
+if(isAdmin(uid) && roomId === PLAY_ROOM_ID){
 
+  // ===== ตั้ง PAY/ชนะ/แพ้ =====
+  if(/^PAY\/\d+\/\d+$/.test(text)){
+    const [, win, lose] = text.split("/");
+    CONFIG.PAY_WIN  = Number(win);
+    CONFIG.PAY_LOSE = Number(lose);
+    return reply(
+      token,
+      `⚙️ ตั้ง PAY จ่าย ${CONFIG.PAY_WIN} ต่อ / เสีย ${CONFIG.PAY_LOSE} ต่อ`
+    );
+  }
+
+  if(text==="O"){
+    CONFIG.OPEN = true;
+    BETS = [];
+    return reply(token,"🟢 เปิดรับเดิมพัน");
+  }
+
+  if(text==="X"){
+    CONFIG.OPEN = false;
+    return reply(token,"🔴 ปิดรับเดิมพัน");
+  }
+
+  if(text==="RESET"){
+    BETS = [];
+    return reply(token,"♻️ รีรอบ (ล้างโพย)");
+  }
+
+  if(text==="REFUND"){
+    BETS.forEach(b=> getUser(b.uid).credit += b.amount);
+    BETS = [];
+    return reply(token,"💸 คืนยอดเรียบร้อย");
+  }
+
+  if(text==="BACK"){
+    if(!LAST) return reply(token,"❌ ไม่มีผลให้ย้อน");
+    LAST.payouts.forEach(p=>{
+      const u = getUser(p.uid);
+      u.credit -= p.win;
+      u.credit += p.amount;
+    });
+    LAST = null;
+    return reply(token,"⏪ ย้อนผลเรียบร้อย");
+  }
+}
     if(text==="O"){
       CONFIG.OPEN = true;
       BETS = [];
@@ -299,28 +345,31 @@ function settleRound(token, dice){
   BETS.forEach(b=>{
     let win = calcWin(b.bet, b.amount, dice);
 
-    if(win>0){
-      // water
-      if(CONFIG.waterWin>0){
-        win = Math.floor(win*(100-CONFIG.waterWin)/100);
+    if(win > 0){
+      // water ฝั่งได้
+      if(CONFIG.waterWin > 0){
+        win = Math.floor(win * (100 - CONFIG.waterWin) / 100);
       }
+
       const u = getUser(b.uid);
       u.credit += win;
       u.playCount++;
       u.history.push(`${b.bet}/${b.amount} +${win}`);
-      payouts.push({ uid:b.uid, amount:b.amount, win });
+
+      payouts.push({ uid: b.uid, amount: b.amount, win });
       msg += `✔ ${b.bet}/${b.amount} +${win}\n`;
+
     }else{
-  const u = getUser(b.uid);
+      const u = getUser(b.uid);
 
-  const totalLose = b.amount * 3;          // เสีย 3 ต่อ
-  const extraLose = totalLose - b.amount;  // หักเพิ่มอีก 2 ต่อ
+      const totalLose = b.amount * CONFIG.PAY_LOSE;      // เสียตาม PAY
+      const extraLose = totalLose - b.amount;             // หักเพิ่ม
 
-  u.credit -= extraLose;
-  u.playCount++;
-  u.history.push(`${b.bet}/${b.amount} -${totalLose}`);
+      u.credit -= extraLose;
+      u.playCount++;
+      u.history.push(`${b.bet}/${b.amount} -${totalLose}`);
 
-  msg += `✖ ${b.bet}/${b.amount} เสีย ${totalLose}\n`;
+      msg += `✖ ${b.bet}/${b.amount} เสีย ${totalLose}\n`;
     }
   });
 
