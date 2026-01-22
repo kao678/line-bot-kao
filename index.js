@@ -375,7 +375,8 @@ return replyFlex(
     uid
   })
 );
-
+}   // ✅ ปิด if รับโพยตรงนี้
+    
 /* ===== SETTLE ROUND ===== */
 function settleRound(token, dice){
   CONFIG.OPEN = false;
