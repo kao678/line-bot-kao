@@ -104,25 +104,20 @@ function calcWin(bet, amt, dice){
       return amt * 26; // 25 ต่อ + ทุน
     }
   }
-
-  // 666 → จ่าย 100 ต่อ
-  if(bet === "666"){
-    if(dice[0]===6 && dice[1]===6 && dice[2]===6){
-      return amt * 101; // 100 ต่อ + ทุน
-    }
+// ตอง (เช่น 111 / 222 / 333 / 666) → จ่าย 100 ต่อ
+if (/^\d{3}$/.test(bet)) {
+  const n = Number(bet[0]);
+  if (dice.every(d => d === n)) {
+    return amt * 101; // 100 ต่อ + ทุน
   }
+}
+  
   // สูง/ต่ำ
   if(bet === "H"){
     if(!isTriple(dice) && sum>=11 && sum<=17) return amt*2;
   }
   if(bet === "L"){
     if(!isTriple(dice) && sum>=4 && sum<=10) return amt*2;
-  }
-
-  // ตองระบุ (111)
-  if(/^\d{3}$/.test(bet)){
-    const n = Number(bet[0]);
-    if(dice.every(d=>d===n)) return amt*101;
   }
 
   // โต๊ด (12)
