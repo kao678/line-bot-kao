@@ -128,7 +128,10 @@ function calcWin(bet, amt, dice){
 
   return 0;
 }
-
+// ===== SHOW MY ID =====
+if (text === "MYID") {
+  return reply(token, `🆔 YOUR ID:\n${uid}`);
+}
 /* ===== EVENT HANDLER ===== */
 async function handleEvent(event){
   if(event.type!=="message" || event.message.type!=="text") return;
