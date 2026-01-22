@@ -139,7 +139,13 @@ async function handleEvent(event){
   const roomId = event.source.groupId || event.source.roomId || null;
 
   const user = getUser(uid);
-
+// ===== SHOW ROOM STATUS =====
+if (isAdmin(uid) && text === "ROOM") {
+  let msg = "🏠 ROOM STATUS\n━━━━━━━━━━━━━━\n";
+  msg += `🎮 ห้องเล่น\n${PLAY_ROOM_ID || "ยังไม่ตั้ง"}\n\n`;
+  msg += `💰 ห้องฝาก\n${DEPOSIT_ROOM_ID || "ยังไม่ตั้ง"}\n━━━━━━━━━━━━━━`;
+  return reply(token, msg);
+}
   /* ===== AUTO SAVE ROOMS ===== */
   if(isAdmin(uid)){
     if(!PLAY_ROOM_ID && (text==="O" || text==="X")) PLAY_ROOM_ID = roomId;
