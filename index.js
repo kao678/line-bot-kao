@@ -62,7 +62,21 @@ function reply(token, text){
     { headers:{ Authorization:`Bearer ${LINE_TOKEN}` } }
   ).catch(()=>{});
 }
-
+function replyFlex(token, flex){
+  return axios.post(
+    "https://api.line.me/v2/bot/message/reply",
+    {
+      replyToken: token,
+      messages: [flex]
+    },
+    {
+      headers:{
+        Authorization: `Bearer ${LINE_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    }
+  ).catch(()=>{});
+}
 /* ===== ROOT ===== */
 app.get("/", (_,res)=>res.status(200).send("BOT OK"));
 
@@ -94,6 +108,69 @@ function calcScore(dice){
  * - ตองระบุ (เช่น 111): x100 (รวมทุน)
  * - สูง/ต่ำ (H/L): x1 (รวมทุน) | ตองกิน
  */
+function buildBetReceiptFlex({ name, avatar, bet, amount, credit, uid }) {
+  return {
+    type: "flex",
+    altText: "✅ รับโพยแล้ว",
+    contents: {
+      type: "bubble",
+      size: "mega",
+      body: {
+        type: "box",
+        layout: "horizontal",
+        spacing: "md",
+        paddingAll: "12px",
+        backgroundColor: "#0B0B0B",
+        contents: [
+
+          /* ===== AVATAR ===== */
+          {
+            type: "image",
+            url: avatar || "https://cdn-icons-png.flaticon.com/512/147/147144.png",
+            size: "sm",
+            aspectRatio: "1:1",
+            aspectMode: "cover",
+            cornerRadius: "50px"
+          },
+
+          /* ===== INFO ===== */
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "xs",
+            contents: [
+              {
+                type: "text",
+                text: name || "NONAME",
+                color: "#00B0FF",
+                weight: "bold",
+                size: "md"
+              },
+              {
+                type: "text",
+                text: bet,
+                color: "#FFFFFF",
+                size: "sm"
+              },
+              {
+                type: "text",
+                text: `คงเหลือ ${credit.toLocaleString()} บ.`,
+                color: "#4CAF50",
+                size: "sm"
+              },
+              {
+                type: "text",
+                text: `ID: ${uid.slice(-6)}`,
+                color: "#888888",
+                size: "xs"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+}
 function calcWin(bet, amt, dice){
   const [a,b,c] = dice;
   const sum = sumDice(dice);
@@ -285,11 +362,19 @@ LAST = null;
       if(user.credit<amt) return reply(token,"❌ เครดิตไม่พอ");
 
       user.credit -= amt;
-      BETS.push({ uid, bet, amount:amt });
-      return reply(token,`✅ รับ ${bet}/${amt}\nคงเหลือ ${user.credit}`);
-    }
-  }
-}
+BETS.push({ uid, bet, amount: amt });
+
+return replyFlex(
+  token,
+  buildBetReceiptFlex({
+    name: user.name || "NONAME",
+    avatar: user.avatar,
+    bet: `${bet}/${amt}`,
+    amount: amt,
+    credit: user.credit,
+    uid
+  })
+);
 
 /* ===== SETTLE ROUND ===== */
 function settleRound(token, dice){
