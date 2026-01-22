@@ -326,7 +326,7 @@ function settleRound(token, dice){
     }
   });
 
-  LAST = { dice, payouts };
+  LAST = { dice, payouts, score };
   BETS = [];
   reply(token, msg || "ไม่มีผู้ชนะ");
 }
