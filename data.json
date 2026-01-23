@@ -5,7 +5,14 @@
   "config": {
     "open": false,
     "min": 50,
-    "max": 2000
+    "max": 2000,
+    "waterLose": 1,
+    "waterWin": 0,
+    "freeWaterRounds": []
   },
-  "lastResult": null
+  "round": 1,
+  "daily": { "in": 0, "out": 0 },
+  "lastResult": null,
+  "history": [],
+  "slips": {}
 }
