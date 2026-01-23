@@ -1,1 +1,18 @@
-
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      { "type": "text", "text": "🎲 ผลการออก", "align": "center" },
+      {
+        "type": "text",
+        "text": "{{RESULT}}",
+        "size": "xxl",
+        "weight": "bold",
+        "align": "center",
+        "color": "#FFD700"
+      }
+    ]
+  }
+}
