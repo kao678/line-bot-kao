@@ -1,0 +1,32 @@
+{
+  "type": "bubble",
+  "hero": {
+    "type": "image",
+    "url": "https://i.imgur.com/CLOSEBET.png",
+    "size": "full",
+    "aspectRatio": "20:13",
+    "aspectMode": "cover"
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "md",
+    "contents": [
+      {
+        "type": "text",
+        "text": "🔴 ปิดรับเดิมพัน",
+        "weight": "bold",
+        "size": "xl",
+        "align": "center",
+        "color": "#FF3B30"
+      },
+      {
+        "type": "text",
+        "text": "ระบบปิดรับโพยแล้ว",
+        "align": "center",
+        "size": "sm",
+        "color": "#AAAAAA"
+      }
+    ]
+  }
+}p
