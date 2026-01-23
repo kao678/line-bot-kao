@@ -1,1 +1,14 @@
-
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      { "type": "text", "text": "{{NAME}} ({{CODE}})", "weight": "bold" },
+      { "type": "text", "text": "{{NUM}} - {{AMOUNT}}" },
+      { "type": "text", "text": "หักล่วงหน้า {{CUT}}", "color": "#FF4D4D" },
+      { "type": "text", "text": "คงเหลือ {{BAL}}", "color": "#00FF6A" }
+    ]
+  }
+}
