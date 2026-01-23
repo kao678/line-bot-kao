@@ -1,7 +1,8 @@
-{
-  "config": {
-    "open": false
-  },
-  "users": {},
-  "bets": {}
-}
+"config": {
+  "open": false,
+  "min": 50,
+  "max": 2000,
+  "waterLose": 1,
+  "waterWin": 0,
+  "freeWaterRounds": []
+},
