@@ -1,0 +1,31 @@
+{
+  "type": "bubble",
+  "hero": {
+    "type": "image",
+    "url": "https://i.imgur.com/OPENBET.png",
+    "size": "full",
+    "aspectRatio": "20:13",
+    "aspectMode": "cover"
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "🟢 เปิดรับเดิมพัน",
+        "weight": "bold",
+        "size": "xl",
+        "align": "center",
+        "color": "#00FF6A"
+      },
+      {
+        "type": "text",
+        "text": "ขั้นต่ำ 50 / สูงสุด 2000",
+        "align": "center",
+        "size": "sm",
+        "color": "#AAAAAA"
+      }
+    ]
+  }
+}
