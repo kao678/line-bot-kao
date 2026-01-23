@@ -1,0 +1,16 @@
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "🟢 เปิดรับเดิมพัน",
+        "weight": "bold",
+        "size": "xl",
+        "align": "center"
+      }
+    ]
+  }
+}
