@@ -1,1 +1,23 @@
-
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "↩️ คืนเงินเรียบร้อย",
+        "weight": "bold",
+        "size": "lg",
+        "align": "center",
+        "color": "#00C851"
+      },
+      {
+        "type": "text",
+        "text": "เครดิตถูกคืนให้สมาชิกแล้ว",
+        "align": "center",
+        "size": "sm"
+      }
+    ]
+  }
+}
