@@ -1,1 +1,20 @@
-
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "📊 สรุปยอดรอบนี้",
+        "weight": "bold",
+        "size": "lg"
+      },
+      {
+        "type": "text",
+        "text": "{{LIST}}",
+        "wrap": true
+      }
+    ]
+  }
+}
