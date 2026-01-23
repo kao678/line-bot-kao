@@ -1,4 +1,4 @@
 module.exports = {
-  CHANNEL_ACCESS_TOKEN: process.env.LINE_TOKEN,
-  CHANNEL_SECRET: process.env.LINE_SECRET
+  LINE_TOKEN: process.env.LINE_TOKEN,
+  LINE_SECRET: process.env.LINE_SECRET
 };
