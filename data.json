@@ -1,8 +1,15 @@
-"config": {
-  "open": false,
-  "min": 50,
-  "max": 2000,
-  "waterLose": 1,
-  "waterWin": 0,
-  "freeWaterRounds": []
-},
+{
+  "config": {
+    "open": false,
+    "min": 50,
+    "max": 2000,
+    "waterLose": 1,
+    "waterWin": 0,
+    "freeWaterRounds": []
+  },
+  "admins": [],
+  "users": {},
+  "bets": {},
+  "round": 1,
+  "daily": { "in": 0, "out": 0 }
+}
