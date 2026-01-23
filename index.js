@@ -24,15 +24,17 @@ function loadFlex(name, replace = {}) {
 function calcWin(num, result, amount) {
   if (num === result) return amount * 1;
   if (num === "456" && result === "456") return amount * 25;
-  if (/^(111|222|333|444|555|666)$/.test(num) && num === result) {
+  if (/^(111|222|333|444|555|666)$/.test(num) && num === result)
     return amount * 100;
-  }
   return 0;
 }
 
 app.post(
   "/webhook",
-  line.middleware({ channelAccessToken: CFG.LINE_TOKEN, channelSecret: CFG.LINE_SECRET }),
+  line.middleware({
+    channelAccessToken: CFG.LINE_TOKEN,
+    channelSecret: CFG.LINE_SECRET
+  }),
   async (req, res) => {
     for (const event of req.body.events) {
       if (event.type !== "message" || event.message.type !== "text") continue;
@@ -40,9 +42,10 @@ app.post(
       const text = event.message.text.trim();
       const uid = event.source.userId;
       const replyToken = event.replyToken;
+      const gid = event.source.groupId;
 
       let db = load();
-      db.users[uid] ??= { credit: 1000, block: false };
+      db.users[uid] ??= { credit: 1000, name: uid, block: false };
       const isAdmin = db.admins.includes(uid);
 
       // ===== แอดมิน =====
@@ -50,123 +53,133 @@ app.post(
         if (isAdmin) db.admins = db.admins.filter(a => a !== uid);
         else db.admins.push(uid);
         save(db);
-        return client.replyMessage(replyToken, { type: "text", text: "อัปเดตสิทธิ์แอดมินแล้ว" });
+        return client.replyMessage(replyToken, {
+          type: "text",
+          text: "อัปเดตสิทธิ์แอดมินแล้ว"
+        });
       }
 
       if (isAdmin && text === "O") {
-        db.config.open = true; save(db);
-        return client.replyMessage(replyToken, { type: "flex", altText: "open", contents: loadFlex("open") });
+        db.config.open = true;
+        save(db);
+        return client.replyMessage(replyToken, {
+          type: "flex",
+          altText: "เปิดรับเดิมพัน",
+          contents: loadFlex("open")
+        });
       }
 
       if (isAdmin && text === "X") {
-        db.config.open = false; save(db);
-        return client.replyMessage(replyToken, { type: "flex", altText: "close", contents: loadFlex("close") });
-      }
-
-      if (isAdmin && text === "RESET") {
-        db.bets = {}; db.round++; save(db);
-        return client.replyMessage(replyToken, { type: "text", text: "รีรอบเรียบร้อย" });
-      }
-
-      if (isAdmin && text === "REFUND") {
-        Object.keys(db.bets).forEach(u => {
-          db.bets[u].forEach(b => db.users[u].credit += b.amount * 3);
-        });
-        db.bets = {}; save(db);
-        return client.replyMessage(replyToken, { type: "flex", altText: "refund", contents: loadFlex("refund") });
-      }
-
-      if (isAdmin && text === "BACK") {
-        return client.replyMessage(replyToken, { type: "flex", altText: "back", contents: loadFlex("back") });
-      }
-
-      // ===== ตั้งค่าน้ำ =====
-      if (isAdmin && /^N\/\d+(\.\d+)?$/.test(text)) {
-        db.config.waterLose = parseFloat(text.split("/")[1]); save(db);
-        return client.replyMessage(replyToken, { type: "text", text: `ตั้งค่าน้ำเสีย ${db.config.waterLose}%` });
-      }
-
-      if (isAdmin && /^NC\/\d+(\.\d+)?$/.test(text)) {
-        db.config.waterWin = parseFloat(text.split("/")[1]); save(db);
-        return client.replyMessage(replyToken, { type: "text", text: `ตั้งค่าน้ำได้ ${db.config.waterWin}%` });
-      }
-
-      if (isAdmin && /^#KNP\/\d+$/.test(text)) {
-        const r = parseInt(text.split("/")[1], 10);
-        if (!db.config.freeWaterRounds.includes(r)) db.config.freeWaterRounds.push(r);
+        db.config.open = false;
         save(db);
-        return client.replyMessage(replyToken, { type: "text", text: `ฟรีค่าน้ำเปิดที่ ${r}` });
+        return client.replyMessage(replyToken, {
+          type: "flex",
+          altText: "ปิดรับเดิมพัน",
+          contents: loadFlex("close")
+        });
       }
 
       // ===== แทง =====
       if (/^\d+\/\d+$/.test(text)) {
-        if (!db.config.open) return;
+        if (!db.config.open)
+          return client.replyMessage(replyToken, { type: "text", text: "❌ ปิดรับแทง" });
+
         const [num, amt] = text.split("/");
-        const amount = parseInt(amt, 10);
-        const cut = amount * 3;
+        const amount = parseInt(amt);
 
-        if (amount < db.config.min || amount > db.config.max) return;
-        if (db.users[uid].credit < cut) return;
+        if (amount < db.config.min || amount > db.config.max)
+          return client.replyMessage(replyToken, { type: "text", text: "❌ ยอดแทงไม่ถูกต้อง" });
 
-        db.users[uid].credit -= cut;
+        const cost = amount * 3;
+        if (db.users[uid].credit < cost)
+          return client.replyMessage(replyToken, { type: "text", text: "❌ เครดิตไม่พอ" });
+
+        db.users[uid].credit -= cost;
         db.bets[uid] ??= [];
         db.bets[uid].push({ num, amount });
-        db.daily.in += cut;
         save(db);
 
         return client.replyMessage(replyToken, {
           type: "flex",
-          altText: "receipt",
+          altText: "รับโพย",
           contents: loadFlex("receipt", {
-            NAME: "KimmiK",
-            CODE: uid.slice(0, 6),
-            NUM: num,
-            AMOUNT: cut,
-            CUT: cut,
-            BAL: db.users[uid].credit
+            NAME: db.users[uid].name,
+            BET: `${num} - ${cost}`,
+            LEFT: db.users[uid].credit
           })
         });
       }
 
       // ===== ออกผล =====
-      if (isAdmin && text.startsWith("S")) {
+      if (isAdmin && /^S\d{3}$/.test(text)) {
         const result = text.slice(1);
-        const d = result.split("");
-        const isFree = db.config.freeWaterRounds.includes(db.round);
-        let list = [];
+        const dice = result.split("");
+
+        db.config.open = false;
+        let summary = [];
 
         Object.keys(db.bets).forEach(u => {
-          let win = 0, betSum = 0;
+          let total = 0;
           db.bets[u].forEach(b => {
-            betSum += b.amount;
-            win += calcWin(b.num, result, b.amount);
+            total += calcWin(b.num, result, b.amount) - b.amount;
           });
-
-          if (!isFree) {
-            if (win > 0 && db.config.waterWin > 0) win -= win * (db.config.waterWin / 100);
-            if (win === 0 && db.config.waterLose > 0) db.users[u].credit -= betSum * (db.config.waterLose / 100);
-          }
-
-          db.users[u].credit += Math.max(0, win);
-          db.daily.out += Math.max(0, win);
-          list.push(`${u.slice(0,6)} : ${db.users[u].credit}`);
+          db.users[u].credit += total;
+          summary.push(`${db.users[u].name} : ${total >= 0 ? "+" : ""}${total}`);
         });
 
-        db.bets = {}; db.round++; save(db);
+        db.lastResult = { result, bets: db.bets };
+        db.bets = {};
+        save(db);
 
-        return client.replyMessage(replyToken, {
+        await client.replyMessage(replyToken, {
           type: "flex",
-          altText: "summary",
-          contents: loadFlex("summary", { LIST: list.join("\n") || "ไม่มีผู้ชนะ" })
+          altText: "ผลออก",
+          contents: loadFlex("dice", {
+            D1: dice[0],
+            D2: dice[1],
+            D3: dice[2]
+          })
+        });
+
+        return client.pushMessage(gid || uid, {
+          type: "flex",
+          altText: "สรุป",
+          contents: loadFlex("summary", {
+            LIST: summary.join("\n")
+          })
         });
       }
 
-      // ===== ปิดบ้านรายวัน =====
-      if (isAdmin && text === "CSD") {
-        const rep = `สรุปวันนี้\nรับเข้า: ${db.daily.in}\nจ่ายออก: ${db.daily.out}`;
-        db.daily = { in: 0, out: 0 };
+      // ===== BACK =====
+      if (isAdmin && text === "BACK") {
+        if (!db.lastResult)
+          return client.replyMessage(replyToken, { type: "text", text: "❌ ไม่มีผลให้ย้อน" });
+
+        Object.keys(db.lastResult.bets).forEach(u => {
+          db.lastResult.bets[u].forEach(b => {
+            const win = calcWin(b.num, db.lastResult.result, b.amount);
+            db.users[u].credit -= win - b.amount;
+          });
+        });
+
+        db.lastResult = null;
         save(db);
-        return client.replyMessage(replyToken, { type: "text", text: rep });
+        return client.replyMessage(replyToken, {
+          type: "flex",
+          altText: "ย้อนผล",
+          contents: loadFlex("back")
+        });
+      }
+
+      // ===== RESET =====
+      if (isAdmin && (text === "RESET" || text === "รีรอบ")) {
+        db.bets = {};
+        db.config.open = false;
+        save(db);
+        return client.replyMessage(replyToken, {
+          type: "text",
+          text: "รีเซ็ตระบบเรียบร้อย"
+        });
       }
     }
     res.sendStatus(200);
