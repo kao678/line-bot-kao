@@ -21,6 +21,16 @@ function loadFlex(name, replace = {}) {
   return JSON.parse(txt);
 }
 
+// ===== คำนวณผล =====
+function calcWin(num, result, amount) {
+  if (num === result) return amount * 1;
+  if (num === "456" && result === "456") return amount * 25;
+  if (/^(111|222|333|444|555|666)$/.test(num) && num === result) {
+    return amount * 100;
+  }
+  return 0;
+}
+
 // ===== Webhook =====
 app.post(
   "/webhook",
@@ -35,9 +45,15 @@ app.post(
 
       const text = event.message.text.trim();
       const replyToken = event.replyToken;
+      const userId = event.source.userId;
+
+      let db = loadDB();
+      db.users[userId] ??= { credit: 1000 };
 
       // เปิดรับเดิมพัน
       if (text === "O") {
+        db.config.open = true;
+        saveDB(db);
         return client.replyMessage(replyToken, {
           type: "flex",
           altText: "เปิดรับเดิมพัน",
@@ -47,6 +63,8 @@ app.post(
 
       // ปิดรับเดิมพัน
       if (text === "X") {
+        db.config.open = false;
+        saveDB(db);
         return client.replyMessage(replyToken, {
           type: "flex",
           altText: "ปิดรับเดิมพัน",
@@ -54,17 +72,67 @@ app.post(
         });
       }
 
-      // ออกผล
-      if (text.startsWith("S")) {
-        const result = text.substring(1);
+      // แทง 1/100
+      if (/^\d+\/\d+$/.test(text)) {
+        if (!db.config.open) {
+          return client.replyMessage(replyToken, { type: "text", text: "ยังไม่เปิดรับเดิมพัน" });
+        }
+
+        const [num, amt] = text.split("/");
+        const amount = parseInt(amt, 10);
+
+        if (amount < db.config.min || amount > db.config.max) {
+          return client.replyMessage(replyToken, { type: "text", text: "จำนวนเงินไม่ถูกต้อง" });
+        }
+
+        if (db.users[userId].credit < amount) {
+          return client.replyMessage(replyToken, { type: "text", text: "เครดิตไม่พอ" });
+        }
+
+        db.users[userId].credit -= amount;
+        db.bets[userId] ??= [];
+        db.bets[userId].push({ num, amount });
+        saveDB(db);
+
         return client.replyMessage(replyToken, {
           type: "flex",
-          altText: "ผลการออก",
-          contents: loadFlex("dice", { RESULT: result })
+          altText: "รับโพย",
+          contents: loadFlex("receipt", {
+            NAME: "USER",
+            CODE: userId.slice(0, 6),
+            NUM: num,
+            AMOUNT: amount,
+            CUT: amount,
+            BAL: db.users[userId].credit
+          })
         });
       }
 
-      // ข้อความอื่น
+      // ออกผล S123
+      if (text.startsWith("S")) {
+        const result = text.substring(1);
+        let list = [];
+
+        Object.keys(db.bets).forEach(uid => {
+          let total = 0;
+          db.bets[uid].forEach(b => {
+            total += calcWin(b.num, result, b.amount);
+          });
+          db.users[uid].credit += total;
+          list.push(`${uid.slice(0, 6)} : ${total}`);
+        });
+
+        db.bets = {};
+        saveDB(db);
+
+        return client.replyMessage(replyToken, {
+          type: "flex",
+          altText: "สรุปยอด",
+          contents: loadFlex("summary", { LIST: list.join("\n") || "ไม่มีผู้ชนะ" })
+        });
+      }
+
+      // ไม่ตรงคำสั่ง
       return client.replyMessage(replyToken, {
         type: "text",
         text: "คำสั่งไม่ถูกต้อง"
