@@ -131,6 +131,7 @@ app.post(
       // ===== ออกผล =====
       if (isAdmin && text.startsWith("S")) {
         const result = text.slice(1);
+        const d = result.split("");
         const isFree = db.config.freeWaterRounds.includes(db.round);
         let list = [];
 
