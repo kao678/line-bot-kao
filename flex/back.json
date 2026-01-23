@@ -1,1 +1,23 @@
-
+{
+  "type": "bubble",
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      {
+        "type": "text",
+        "text": "⏪ ย้อนผลสำเร็จ",
+        "weight": "bold",
+        "size": "lg",
+        "align": "center",
+        "color": "#FF8800"
+      },
+      {
+        "type": "text",
+        "text": "ระบบกลับไปยังรอบก่อนหน้าแล้ว",
+        "align": "center",
+        "size": "sm"
+      }
+    ]
+  }
+}
