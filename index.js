@@ -132,15 +132,14 @@ app.post(
           db.bets[uid].push({ num, amount });
           save(db);
 
-          await client.replyMessage(replyToken, {
-            type: "flex",
-            altText: "ใบรับโพย",
-            contents: loadFlex("receipt", {
-              NUM: num,
-              AMOUNT: amount.toLocaleString(),
-              CUT: cut.toLocaleString(),
-              BAL: db.users[uid].credit.toLocaleString()
-            })
+          contents: loadFlex("receipt", {
+  NAME: "NONAME",
+  CODE: `X${uid.slice(-4)}`,
+  NUM: num,
+  AMOUNT: amount.toLocaleString(),
+  CUT: cut.toLocaleString(),
+  BAL: db.users[uid].credit.toLocaleString()
+})
           });
           continue;
         }
