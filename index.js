@@ -32,31 +32,14 @@ function loadDB() {
       config: { open: false }
     };
   }
-  return JSON.parse(fs.readFileSync(DB_FILE));
+  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
 }
 
 function saveDB(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 
-// ================= FLEX =================
-function receiptFlex(name, code, num, amt, cut, bal) {
-  return {
-    type: "bubble",
-    body: {
-      type: "box",
-      layout: "vertical",
-      contents: [
-        { type: "text", text: `📄 ใบรับโพย`, weight: "bold", size: "lg" },
-        { type: "text", text: `${name} (${code})` },
-        { type: "text", text: `เลข ${num} | เดิมพัน ${amt}` },
-        { type: "text", text: `หักล่วงหน้า ${cut}`, color: "#dc2626" },
-        { type: "text", text: `เครดิตคงเหลือ ${bal}`, color: "#16a34a", weight: "bold" }
-      ]
-    }
-  };
-}
-
+// ================= FLEX HELPERS =================
 function diceImage(n) {
   return {
     type: "image",
@@ -66,287 +49,245 @@ function diceImage(n) {
   };
 }
 
-function diceFlexReal(result) {
-  const d = result.split("");
-  return {
-    type: "bubble",
-    hero: {
-      type: "box",
-      layout: "horizontal",
-      contents: [diceImage(d[0]), diceImage(d[1]), diceImage(d[2])],
-      justifyContent: "center",
-      paddingAll: "20px"
-    },
-    body: {
-      type: "box",
-      layout: "vertical",
-      contents: [
-        { type: "text", text: "🎲 ผลออก", align: "center", weight: "bold" },
-        { type: "text", text: result, align: "center", size: "xl", weight: "bold", color: "#2563eb" }
-      ]
-    }
-  };
-}
+function closeBillFlex(result, summary) {
+  const totalRoom = summary.reduce((a, b) => a + b.total, 0);
 
-function historyFlex(history) {
   return {
     type: "bubble",
-    body: {
+    size: "giga",
+    header: {
       type: "box",
       layout: "vertical",
+      backgroundColor: "#020617",
+      paddingAll: "14px",
       contents: [
-        { type: "text", text: "📊 สถิติย้อนหลัง", weight: "bold" },
-        ...history.slice(-10).reverse().map((h, i) => ({
+        {
           type: "text",
-          text: `${i + 1}. ${h.result} (รวม ${h.sum})`
-        }))
+          text: "🎲 ปิดบิลผลออก",
+          align: "center",
+          size: "lg",
+          weight: "bold",
+          color: "#38bdf8"
+        },
+        {
+          type: "text",
+          text: result,
+          align: "center",
+          size: "xxl",
+          weight: "bold",
+          color: "#ffffff"
+        }
+      ]
+    },
+
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: summary.map((u, i) => ({
+        type: "box",
+        layout: "vertical",
+        spacing: "xs",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: `${i + 1}. ${u.name}`,
+                flex: 4,
+                size: "sm",
+                wrap: true
+              },
+              {
+                type: "text",
+                text:
+                  (u.total > 0 ? "+" : "") +
+                  u.total.toLocaleString(),
+                flex: 2,
+                size: "sm",
+                align: "end",
+                weight: "bold",
+                color: u.total >= 0 ? "#22c55e" : "#ef4444"
+              }
+            ]
+          },
+          {
+            type: "text",
+            text: `เครดิตคงเหลือ ${u.credit.toLocaleString()} บ.`,
+            size: "xs",
+            color: "#64748b"
+          },
+          {
+            type: "separator",
+            margin: "sm"
+          }
+        ]
+      }))
+    },
+
+    footer: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#020617",
+      paddingAll: "14px",
+      contents: [
+        {
+          type: "text",
+          text: "💰 รวมยอดทั้งห้อง",
+          align: "center",
+          size: "sm",
+          color: "#94a3b8"
+        },
+        {
+          type: "text",
+          text:
+            (totalRoom > 0 ? "+" : "") +
+            totalRoom.toLocaleString() +
+            " บาท",
+          align: "center",
+          size: "xl",
+          weight: "bold",
+          color: totalRoom >= 0 ? "#22c55e" : "#ef4444"
+        }
       ]
     }
   };
 }
-
-function summaryFlex(list) {
-  if (isAdmin && /^S\d{3}$/.test(text)) {
-  const result = text.slice(1);
-  db.config.open = false;
-
-  const summaryMap = {};
-
-  Object.keys(db.bets).forEach(uid => {
-    summaryMap[uid] = 0;
-
-    db.bets[uid].forEach(b => {
-      if (b.num === result) {
-        const win = b.amount * 4;
-        db.users[uid].credit += win;
-        summaryMap[uid] += win;
-      } else {
-        const lose = b.amount * 3;
-        summaryMap[uid] -= lose;
-      }
-    });
-  });
-
-  const summary = Object.keys(summaryMap).map(uid => ({
-    name: db.users[uid].name,
-    total: summaryMap[uid],
-    credit: db.users[uid].credit
-  }));
-
-  saveHistory(db, result);
-  db.bets = {};
-  saveDB(db);
-
-  await client.pushMessage(gid, {
-    type: "flex",
-    altText: "ปิดบิล",
-    contents: closeBillFlex(result, summary)
-  });
-
-  return;
-  }
 
 // ================= HISTORY =================
 function saveHistory(db, result) {
   const sum = result.split("").reduce((a, b) => a + Number(b), 0);
-  db.history.push({ result, sum });
+  db.history.push({ result, sum, time: new Date().toLocaleString("th-TH") });
   if (db.history.length > 20) db.history.shift();
 }
 
 // ================= WEBHOOK =================
-app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req, res) => {
-  res.sendStatus(200);
-  const event = req.body.events[0];
-  if (!event || event.type !== "message") return;
+app.post(
+  "/webhook",
+  line.middleware({ channelSecret: LINE_SECRET }),
+  async (req, res) => {
+    res.sendStatus(200);
 
-  const text = event.message.text.trim();
-  const uid = event.source.userId;
-  const gid = event.source.groupId;
-  const replyToken = event.replyToken;
+    const event = req.body.events[0];
+    if (!event || event.type !== "message") return;
 
-  const db = loadDB();
-  db.users[uid] ??= { credit: 1000, name: "NONAME", code: uid.slice(-4) };
-  const isAdmin = db.admins.includes(uid);
+    const text = event.message.text.trim();
+    const uid = event.source.userId;
+    const gid = event.source.groupId;
+    const replyToken = event.replyToken;
 
-  // ===== ADMIN =====
-  if (text === "#ADMIN") {
-    if (!isAdmin) db.admins.push(uid);
-    saveDB(db);
-    return client.replyMessage(replyToken, { type: "text", text: "✅ คุณเป็นแอดมินแล้ว" });
-  }
+    const db = loadDB();
 
-  if (text === "O" && isAdmin) {
-    db.config.open = true;
-    saveDB(db);
-    return client.replyMessage(replyToken, { type: "text", text: "🟢 เปิดรับเดิมพัน" });
-  }
-
-  if (text === "X" && isAdmin) {
-    db.config.open = false;
-    saveDB(db);
-    return client.replyMessage(replyToken, { type: "text", text: "🔴 ปิดรับเดิมพัน" });
-  }
-
-  // ===== BET =====
-  if (/^\d+\/\d+$/.test(text)) {
-    if (!db.config.open) return;
-    const [num, amt] = text.split("/");
-    const amount = Number(amt);
-    const cut = amount * 3;
-
-    if (db.users[uid].credit < cut) {
-      return client.replyMessage(replyToken, { type: "text", text: "❌ เครดิตไม่พอ" });
+    if (!db.users[uid]) {
+      db.users[uid] = {
+        credit: 1000,
+        name: "ผู้เล่น",
+        code: uid.slice(-4)
+      };
     }
 
-    db.users[uid].credit -= cut;
-    db.bets[uid] ??= [];
-    db.bets[uid].push({ num, amount });
-    saveDB(db);
+    const isAdmin = db.admins.includes(uid);
 
-    return client.replyMessage(replyToken, {
-      type: "flex",
-      altText: "ใบรับโพย",
-      contents: receiptFlex(
-        db.users[uid].name,
-        db.users[uid].code,
-        num,
-        amount,
-        cut,
-        db.users[uid].credit
-      )
-    });
-  }
+    // ===== ADMIN =====
+    if (text === "#ADMIN") {
+      if (!isAdmin) db.admins.push(uid);
+      saveDB(db);
+      return client.replyMessage(replyToken, {
+        type: "text",
+        text: "✅ ได้สิทธิ์แอดมินแล้ว"
+      });
+    }
 
-// ===== RESULT =====
-if (isAdmin && /^S\d{3}$/.test(text)) {
-  const result = text.slice(1);
-  db.config.open = false;
+    if (text === "O" && isAdmin) {
+      db.config.open = true;
+      saveDB(db);
+      return client.replyMessage(replyToken, {
+        type: "text",
+        text: "🟢 เปิดรับเดิมพัน"
+      });
+    }
 
-  const summaryMap = {}; // 👈 เก็บยอดสุทธิแต่ละคน
+    if (text === "X" && isAdmin) {
+      db.config.open = false;
+      saveDB(db);
+      return client.replyMessage(replyToken, {
+        type: "text",
+        text: "🔴 ปิดรับเดิมพัน"
+      });
+    }
 
-  Object.keys(db.bets).forEach(u => {
-    summaryMap[u] = 0;
+    // ===== BET =====
+    if (/^\d+\/\d+$/.test(text)) {
+      if (!db.config.open) return;
 
-    db.bets[u].forEach(b => {
-      if (b.num === result) {
-        const win = b.amount * 4;
-        db.users[u].credit += win;
-        summaryMap[u] += win;
-      } else {
-        const lose = b.amount * 3;
-        summaryMap[u] -= lose;
+      const [num, amt] = text.split("/");
+      const amount = parseInt(amt, 10);
+      const cut = amount * 3;
+
+      if (db.users[uid].credit < cut) {
+        return client.replyMessage(replyToken, {
+          type: "text",
+          text: "❌ เครดิตไม่พอ"
+        });
       }
-    });
-  });
 
-  // 🔥 แปลงเป็น list สำหรับ Flex
-  const summary = Object.keys(summaryMap).map(u => ({
-    name: db.users[u].name,
-    total: summaryMap[u]
-  }));
+      db.users[uid].credit -= cut;
+      db.bets[uid] ??= [];
+      db.bets[uid].push({ num, amount });
+      saveDB(db);
 
-  saveHistory(db, result);
-  db.bets = {};
-  saveDB(db);
+      return client.replyMessage(replyToken, {
+        type: "text",
+        text: `รับโพย ${num}/${amount}`
+      });
+    }
 
-  // 🎲 ผลลูกเต๋า
-  await client.pushMessage(gid, {
-    type: "flex",
-    altText: "ผลออก",
-    contents: diceFlexReal(result)
-  });
+    // ===== RESULT / CLOSE BILL =====
+    if (isAdmin && /^S\d{3}$/.test(text)) {
+      const result = text.slice(1);
+      db.config.open = false;
 
-  // 📊 สรุปยอดทั้งห้อง (ที่คุณต้องการ)
-  await client.pushMessage(gid, {
-    type: "flex",
-    altText: "สรุปยอดทั้งห้อง",
-    contents: summaryFlex(summary)
-  });
+      const summaryMap = {};
 
-  // 📈 สถิติย้อนหลัง
-  await client.pushMessage(gid, {
-    type: "flex",
-    altText: "สถิติย้อนหลัง",
-    contents: historyFlex(db.history)
-  });
+      Object.keys(db.bets).forEach(uid2 => {
+        summaryMap[uid2] = 0;
 
-  return;
-}
+        db.bets[uid2].forEach(b => {
+          if (b.num === result) {
+            const win = b.amount * 4;
+            db.users[uid2].credit += win;
+            summaryMap[uid2] += win;
+          } else {
+            const lose = b.amount * 3;
+            summaryMap[uid2] -= lose;
+          }
+        });
+      });
 
-  // ===== C : เช็คยอดเงิน =====
-if (text === "C") {
-  const user = db.users[uid];
+      const summary = Object.keys(summaryMap).map(uid2 => ({
+        name: db.users[uid2].name,
+        total: summaryMap[uid2],
+        credit: db.users[uid2].credit
+      }));
 
-  await client.replyMessage(replyToken, {
-    type: "flex",
-    altText: "เช็คยอดเงิน",
-    contents: balanceFlex(
-      user.name || "NONAME",
-      user.code || uid.slice(-4),
-      user.credit || 0
-    )
-  });
-  return;
-}
+      saveHistory(db, result);
+      db.bets = {};
+      saveDB(db);
 
-  // ===== B =====
-  if (text === "B") {
-    return client.replyMessage(replyToken, {
-      type: "text",
-      text: `💰 เครดิตคงเหลือ: ${db.users[uid].credit}`
-    });
+      await client.pushMessage(gid, {
+        type: "flex",
+        altText: "ปิดบิล",
+        contents: closeBillFlex(result, summary)
+      });
+
+      return;
+    }
   }
-});
+);
 
+// ================= START =================
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
-function balanceFlex(name, code, credit) {
-  return {
-    type: "bubble",
-    body: {
-      type: "box",
-      layout: "horizontal",
-      spacing: "md",
-      contents: [
-        {
-          type: "image",
-          url: "https://i.imgur.com/9XnQZQZ.png", // รูปโปรไฟล์ตัวอย่าง
-          size: "sm",
-          aspectRatio: "1:1",
-          aspectMode: "cover",
-          cornerRadius: "50%"
-        },
-        {
-          type: "box",
-          layout: "vertical",
-          contents: [
-            {
-              type: "text",
-              text: name,
-              weight: "bold",
-              color: "#38bdf8",
-              size: "md"
-            },
-            {
-              type: "text",
-              text: `คงเหลือ ${credit.toLocaleString()} บ.`,
-              color: "#22c55e",
-              size: "lg",
-              weight: "bold"
-            },
-            {
-              type: "text",
-              text: `ID: ${code}`,
-              color: "#94a3b8",
-              size: "sm"
-            }
-          ]
-        }
-      ],
-      backgroundColor: "#020617",
-      paddingAll: "16px",
-      cornerRadius: "12px"
-    }
-  };
-}
