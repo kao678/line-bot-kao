@@ -280,3 +280,62 @@ function diceFlexReal(result) {
     }
   };
 }
+function summaryFlex(summaryList) {
+  return {
+    type: "bubble",
+    header: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "📊 สรุปยอดเดิมพัน",
+          weight: "bold",
+          size: "lg",
+          align: "center",
+          color: "#ffffff"
+        }
+      ],
+      backgroundColor: "#111827",
+      paddingAll: "12px"
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: summaryList.length
+        ? summaryList.map(item => ({
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: item.name,
+                flex: 3,
+                size: "sm",
+                wrap: true
+              },
+              {
+                type: "text",
+                text:
+                  (item.total > 0 ? "+" : "") +
+                  item.total.toLocaleString(),
+                flex: 2,
+                size: "sm",
+                align: "end",
+                weight: "bold",
+                color: item.total >= 0 ? "#16a34a" : "#dc2626"
+              }
+            ]
+          }))
+        : [
+            {
+              type: "text",
+              text: "ไม่มีการเดิมพัน",
+              align: "center",
+              color: "#6b7280"
+            }
+          ]
+    }
+  };
+}
