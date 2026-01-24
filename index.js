@@ -1,12 +1,13 @@
-require("dotenv").config();
+// ================== BASIC SETUP ==================
 const express = require("express");
-const fs = require("fs");
 const line = require("@line/bot-sdk");
+const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const LINE_TOKEN = process.env.LINE_TOKEN;
+// ================== ENV (Render ใส่ให้) ==================
+const LINE_TOKEN  = process.env.LINE_TOKEN;
 const LINE_SECRET = process.env.LINE_SECRET;
 
 if (!LINE_TOKEN || !LINE_SECRET) {
@@ -15,107 +16,108 @@ if (!LINE_TOKEN || !LINE_SECRET) {
 }
 
 const client = new line.Client({
-  channelAccessToken: LINE_TOKEN,
-  channelSecret: LINE_SECRET
+  channelAccessToken: LINE_TOKEN
 });
 
-/* ================== DATABASE ================== */
+// ================== SIMPLE DATABASE ==================
 const DB_FILE = "./data.json";
-function load() {
+
+function loadDB() {
   if (!fs.existsSync(DB_FILE)) {
     return {
       users: {},
-      bets: {},
       admins: [],
-      config: { open: false },
-      history: []
+      bets: {},
+      config: { open: false }
     };
   }
-  return JSON.parse(fs.readFileSync(DB_FILE));
+  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
 }
-function save(db) {
+
+function saveDB(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 
-/* ================== FLEX ================== */
-function loadFlex(name, data = {}) {
-  let flex = JSON.parse(fs.readFileSync(`./flex/${name}.json`));
-  let txt = JSON.stringify(flex);
-  Object.keys(data).forEach(k => {
-    txt = txt.replace(new RegExp(`{{${k}}}`, "g"), data[k]);
-  });
-  return JSON.parse(txt);
-}
-
-/* ================== WEBHOOK ================== */
+// ================== WEBHOOK ==================
 app.post(
   "/webhook",
-  line.middleware({ channelAccessToken: LINE_TOKEN, channelSecret: LINE_SECRET }),
+  line.middleware({ channelSecret: LINE_SECRET }),
   async (req, res) => {
-    const db = load();
+    const db = loadDB();
 
     for (const event of req.body.events) {
       if (event.type !== "message") continue;
       if (event.message.type !== "text") continue;
 
-      const raw = event.message.text.trim();
-      const text = raw.toUpperCase();
+      const text = event.message.text.trim().toUpperCase();
       const uid = event.source.userId;
       const gid = event.source.groupId;
       const replyToken = event.replyToken;
 
-      db.users[uid] ??= { credit: 1000, name: "NONAME" };
+      // init user
+      if (!db.users[uid]) {
+        db.users[uid] = { credit: 1000 };
+      }
+
       const isAdmin = db.admins.includes(uid);
 
-      /* ===== MYID ===== */
+      // ================== MYID ==================
       if (text === "MYID") {
         await client.replyMessage(replyToken, {
           type: "text",
-          text: `MY ID\n${uid}\nCODE: X${uid.slice(-4)}`
+          text: `MY ID\n${uid}`
         });
         continue;
       }
 
-      /* ===== ADMIN TOGGLE ===== */
+      // ================== ADMIN TOGGLE ==================
       if (text === "#ADMIN") {
-        if (!db.admins.includes(uid)) db.admins.push(uid);
-        save(db);
+        if (isAdmin) {
+          db.admins = db.admins.filter(a => a !== uid);
+        } else {
+          db.admins.push(uid);
+        }
+        saveDB(db);
         await client.replyMessage(replyToken, {
           type: "text",
-          text: "✅ อัปเดตสิทธิ์แอดมินแล้ว"
+          text: "✅ อัปเดตสิทธิ์แอดมินเรียบร้อย"
         });
         continue;
       }
 
-      /* ===== OPEN / CLOSE ===== */
+      // ================== OPEN / CLOSE ==================
       if (isAdmin && text === "O") {
         db.config.open = true;
-        save(db);
+        saveDB(db);
         await client.replyMessage(replyToken, {
-          type: "flex",
-          altText: "open",
-          contents: loadFlex("open")
+          type: "text",
+          text: "🟢 เปิดรับเดิมพันแล้ว"
         });
         continue;
       }
 
       if (isAdmin && text === "X") {
         db.config.open = false;
-        save(db);
+        saveDB(db);
         await client.replyMessage(replyToken, {
-          type: "flex",
-          altText: "close",
-          contents: loadFlex("close")
+          type: "text",
+          text: "🔴 ปิดรับเดิมพันแล้ว"
         });
         continue;
       }
 
-      /* ===== BET 1/100 ===== */
+      // ================== BET 1/100 ==================
       if (/^\d+\/\d+$/.test(text)) {
-        if (!db.config.open) continue;
+        if (!db.config.open) {
+          await client.replyMessage(replyToken, {
+            type: "text",
+            text: "❌ ยังไม่เปิดรับเดิมพัน"
+          });
+          continue;
+        }
 
         const [num, amt] = text.split("/");
-        const amount = parseInt(amt);
+        const amount = parseInt(amt, 10);
         const cut = amount * 3;
 
         if (db.users[uid].credit < cut) {
@@ -129,89 +131,61 @@ app.post(
         db.users[uid].credit -= cut;
         db.bets[uid] ??= [];
         db.bets[uid].push({ num, amount });
-
-        save(db);
+        saveDB(db);
 
         await client.replyMessage(replyToken, {
-          type: "flex",
-          altText: "receipt",
-          contents: loadFlex("receipt", {
-            NAME: db.users[uid].name,
-            CODE: `X${uid.slice(-4)}`,
-            BET: `${num} - ${amount.toLocaleString()}`,
-            CUT: cut.toLocaleString(),
-            BAL: db.users[uid].credit.toLocaleString()
-          })
+          type: "text",
+          text:
+            `📄 ใบรับโพย\n` +
+            `เลข: ${num}\n` +
+            `เดิมพัน: ${amount}\n` +
+            `หักล่วงหน้า: ${cut}\n` +
+            `คงเหลือ: ${db.users[uid].credit}`
         });
         continue;
       }
 
-      /* ===== RESULT S123 ===== */
+      // ================== RESULT S123 ==================
       if (isAdmin && /^S\d{3}$/.test(text)) {
         const result = text.slice(1);
         db.config.open = false;
 
         let summary = [];
-        let history = {
-          round: db.history.length + 1,
-          result,
-          players: []
-        };
 
         Object.keys(db.bets).forEach(u => {
           let total = 0;
           db.bets[u].forEach(b => {
-            if (b.num === result) total += b.amount;
-            else total -= b.amount * 3;
+            if (b.num === result) {
+              total += b.amount * 3;
+            }
           });
           db.users[u].credit += total;
-          history.players.push({
-            name: `X${u.slice(-4)}`,
-            diff: total
-          });
-          summary.push(
-            `${u.slice(-4)} : ${total >= 0 ? "+" : ""}${total.toLocaleString()}`
-          );
+          summary.push(`${u.slice(-4)} : +${total}`);
         });
-
-        db.history.unshift(history);
-        if (db.history.length > 10) db.history.pop();
 
         db.bets = {};
-        save(db);
+        saveDB(db);
 
         await client.replyMessage(replyToken, {
-          type: "flex",
-          altText: "dice",
-          contents: loadFlex("dice", {
-            D1: result[0],
-            D2: result[1],
-            D3: result[2]
-          })
+          type: "text",
+          text:
+            `🎲 ผลออก ${result}\n` +
+            `📊 สรุปยอด\n` +
+            summary.join("\n")
         });
-
-        await client.pushMessage(gid, {
-          type: "flex",
-          altText: "summary",
-          contents: loadFlex("summary", {
-            RESULT: result,
-            LIST: summary.join("\n")
-          })
-        });
-
-        await client.pushMessage(gid, {
-          type: "flex",
-          altText: "history",
-          contents: loadFlex("history", {
-            HISTORY: db.history
-              .map(h => `#${h.round} → ${h.result}`)
-              .join("\n")
-          })
-        });
+        continue;
       }
     }
+
     res.sendStatus(200);
   }
 );
 
-app.listen(PORT, () => console.log("🚀 Bot running"));
+// ================== HEALTH CHECK ==================
+app.get("/", (req, res) => {
+  res.send("OK");
+});
+
+app.listen(PORT, () => {
+  console.log("🚀 Bot running on port", PORT);
+});
