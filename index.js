@@ -4,7 +4,7 @@ const fs = require("fs");
 
 const app = express();
 
-/* ================= CONFIG ================= */
+/* ====== CONFIG ====== */
 const LINE_TOKEN = process.env.LINE_TOKEN;
 const LINE_SECRET = process.env.LINE_SECRET;
 
@@ -18,7 +18,12 @@ const client = new line.Client({
   channelSecret: LINE_SECRET
 });
 
-/* ================= DATABASE ================= */
+/* ===== SUPER ADMIN ===== */
+const SUPER_ADMINS = [
+  "Uab107367b6017b2b5fede655841f715c" // 👈 ใส่ USER ID ตัวเอง
+];
+
+/* ===== DATABASE ===== */
 const FILE = "./data.json";
 
 function load() {
@@ -27,10 +32,7 @@ function load() {
       users: {},
       bets: {},
       admins: [],
-      config: {
-        open: false,
-        waterLose: 1
-      },
+      config: { open: false, waterLose: 1 },
       history: []
     };
   }
@@ -41,21 +43,17 @@ function save(db) {
   fs.writeFileSync(FILE, JSON.stringify(db, null, 2));
 }
 
-/* ================= FLEX ================= */
+/* ===== FLEX ===== */
 function loadFlex(name, replace = {}) {
-  const path = `./flex/${name}.json`;
-  if (!fs.existsSync(path)) {
-    return { type: "text", text: `❌ missing flex: ${name}` };
-  }
-  let flex = JSON.parse(fs.readFileSync(path, "utf8"));
+  let flex = JSON.parse(fs.readFileSync(`./flex/${name}.json`, "utf8"));
   let txt = JSON.stringify(flex);
-  Object.keys(replace).forEach(k => {
-    txt = txt.replaceAll(`{{${k}}}`, String(replace[k]));
-  });
+  for (let k in replace) {
+    txt = txt.replaceAll(`{{${k}}}`, replace[k]);
+  }
   return JSON.parse(txt);
 }
 
-/* ================= CALC ================= */
+/* ===== CALC ===== */
 function calcWin(num, result, amt, waterLose) {
   if (num === result) return amt * 1;
   if (num === "456" && result === "456") return amt * 25;
@@ -64,13 +62,10 @@ function calcWin(num, result, amt, waterLose) {
   return -(amt * 3 + amt * (waterLose / 100));
 }
 
-/* ================= WEBHOOK ================= */
+/* ===== WEBHOOK ===== */
 app.post(
   "/webhook",
-  line.middleware({
-    channelAccessToken: LINE_TOKEN,
-    channelSecret: LINE_SECRET
-  }),
+  line.middleware({ channelAccessToken: LINE_TOKEN, channelSecret: LINE_SECRET }),
   async (req, res) => {
     try {
       const db = load();
@@ -79,16 +74,15 @@ app.post(
         if (event.type !== "message") continue;
         if (event.message.type !== "text") continue;
 
-        const rawText = event.message.text.trim();
-        const text = rawText
-        .toUpperCase()
-        .replace(/＃/g, "#"); // แก้ # เพี้ยนจาก LINE
+        const text = event.message.text.trim().toUpperCase();
         const uid = event.source.userId;
         const gid = event.source.groupId;
         const replyToken = event.replyToken;
 
         db.users[uid] ??= { credit: 1000, block: false };
-        const isAdmin = db.admins.includes(uid);
+
+        const isSuper = SUPER_ADMINS.includes(uid);
+        const isAdmin = isSuper || db.admins.includes(uid);
 
         /* ===== MYID ===== */
         if (text === "MYID") {
@@ -99,23 +93,42 @@ app.post(
           continue;
         }
 
-        /* ===== ADMIN TOGGLE ===== */
-if (text.replace(/\s+/g, "").startsWith("#ADMIN")) {
-  if (db.admins.includes(uid)) {
-    db.admins = db.admins.filter(a => a !== uid);
-  } else {
-    db.admins.push(uid);
-  }
-  save(db);
+        /* ===== ADD / REMOVE ADMIN (SUPER ONLY) ===== */
+        if (isSuper && text.startsWith("ADDADMIN")) {
+          const code = text.split(" ")[1];
+          if (!code) continue;
 
-  await client.replyMessage(replyToken, {
-    type: "text",
-    text: "✅ อัปเดตสิทธิ์แอดมินเรียบร้อย"
-  });
-  continue;
-}
+          const target = Object.keys(db.users).find(
+            u => `X${u.slice(-5)}` === code
+          );
+          if (target && !db.admins.includes(target)) {
+            db.admins.push(target);
+            save(db);
+          }
 
-        /* ===== OPEN ===== */
+          await client.replyMessage(replyToken, {
+            type: "text",
+            text: "✅ เพิ่มแอดมินย่อยเรียบร้อย"
+          });
+          continue;
+        }
+
+        if (isSuper && text.startsWith("DELADMIN")) {
+          const code = text.split(" ")[1];
+          const target = Object.keys(db.users).find(
+            u => `X${u.slice(-5)}` === code
+          );
+          db.admins = db.admins.filter(a => a !== target);
+          save(db);
+
+          await client.replyMessage(replyToken, {
+            type: "text",
+            text: "🗑 ลบแอดมินย่อยแล้ว"
+          });
+          continue;
+        }
+
+        /* ===== OPEN / CLOSE ===== */
         if (isAdmin && text === "O") {
           db.config.open = true;
           save(db);
@@ -127,7 +140,6 @@ if (text.replace(/\s+/g, "").startsWith("#ADMIN")) {
           continue;
         }
 
-        /* ===== CLOSE ===== */
         if (isAdmin && text === "X") {
           db.config.open = false;
           save(db);
@@ -139,39 +151,13 @@ if (text.replace(/\s+/g, "").startsWith("#ADMIN")) {
           continue;
         }
 
-        /* ===== RESET / REFUND ===== */
-        if (isAdmin && (text === "RESET" || text === "REFUND")) {
-          Object.keys(db.bets).forEach(u => {
-            db.bets[u].forEach(b => {
-              db.users[u].credit += b.amount * 3;
-            });
-          });
-          db.bets = {};
-          save(db);
-          await client.replyMessage(replyToken, {
-            type: "flex",
-            altText: "refund",
-            contents: loadFlex("refund")
-          });
-          continue;
-        }
-
         /* ===== BET ===== */
-        if (/^\d+\/\d+$/.test(text)) {
-          if (!db.config.open) continue;
-          if (db.users[uid].block) continue;
-
+        if (/^\d+\/\d+$/.test(text) && db.config.open) {
           const [num, amt] = text.split("/");
-          const amount = parseInt(amt, 10);
+          const amount = parseInt(amt);
           const cost = amount * 3 + amount * (db.config.waterLose / 100);
 
-          if (db.users[uid].credit < cost) {
-            await client.replyMessage(replyToken, {
-              type: "text",
-              text: "❌ เครดิตไม่พอ"
-            });
-            continue;
-          }
+          if (db.users[uid].credit < cost) continue;
 
           db.users[uid].credit -= cost;
           db.bets[uid] ??= [];
@@ -196,16 +182,15 @@ if (text.replace(/\s+/g, "").startsWith("#ADMIN")) {
           const result = text.slice(1);
           let summary = [];
 
-          Object.keys(db.bets).forEach(u => {
+          for (let u in db.bets) {
             let total = 0;
-            db.bets[u].forEach(b => {
+            for (let b of db.bets[u]) {
               total += calcWin(b.num, result, b.amount, db.config.waterLose);
-            });
+            }
             db.users[u].credit += total;
-            summary.push(`X${u.slice(-5)} : ${total >= 0 ? "+" : ""}${total}`);
-          });
+            summary.push(`X${u.slice(-5)} : ${total}`);
+          }
 
-          db.history.push({ result, summary, time: Date.now() });
           db.bets = {};
           save(db);
 
@@ -225,13 +210,12 @@ if (text.replace(/\s+/g, "").startsWith("#ADMIN")) {
 
       res.sendStatus(200);
     } catch (err) {
-      console.error("WEBHOOK ERROR:", err);
+      console.error(err);
       res.sendStatus(200);
     }
   }
 );
 
-/* ================= START ================= */
-app.listen(process.env.PORT || 3000, () => {
-  console.log("🔥 HILO BOT RUNNING");
-});
+app.listen(process.env.PORT || 3000, () =>
+  console.log("🔥 HILO BOT RUNNING")
+);
