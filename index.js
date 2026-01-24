@@ -21,20 +21,15 @@ function loadFlex(name, replace = {}) {
 }
 
 // ===== คำนวณผล =====
-function calcWin(num, result, amount, cfg, isFreeWater) {
+function calcWin(num, result, amount, cfg) {
   let win = 0;
-  if (num === result) win = amount * 1;
+  if (num === result) win = amount;
   if (num === "456" && result === "456") win = amount * 25;
-  if (/^(111|222|333|444|555|666)$/.test(num) && num === result) win = amount * 100;
+  if (/^(111|222|333|444|555|666)$/.test(num) && num === result)
+    win = amount * 100;
 
-  if (win <= 0) {
-    let lose = amount * 3;
-    if (!isFreeWater && cfg.waterLose > 0) lose += amount * (cfg.waterLose / 100);
-    return -lose;
-  }
-  let profit = win;
-  if (!isFreeWater && cfg.waterWin > 0) profit -= win * (cfg.waterWin / 100);
-  return profit;
+  if (win <= 0) return -(amount * 3);
+  return win;
 }
 
 app.post(
@@ -47,105 +42,65 @@ app.post(
     for (const event of req.body.events) {
       if (event.type !== "message") continue;
 
-      const gid = event.source.groupId;
       const uid = event.source.userId;
+      const gid = event.source.groupId;
       const replyToken = event.replyToken;
 
       let db = load();
-      db.users[uid] ??= { credit: 0, name: uid, block: false };
+      db.users ??= {};
       db.admins ??= [];
-      db.config ??= { open: false, waterLose: 1, waterWin: 0, freeWaterRounds: [] };
+      db.bets ??= {};
+      db.config ??= { open: false };
+      db.users[uid] ??= { credit: 0, name: uid };
 
       const isAdmin = db.admins.includes(uid);
 
       if (event.message.type !== "text") continue;
       const text = event.message.text.trim();
+      const TEXT = text.toUpperCase();
 
-// ===============================
-// 🔐 คำสั่งแอดมิน (ห้องแอดมิน + ห้องเล่น)
-// ===============================
-const isAdminRoom = gid === db.adminRoom;
-const isPlayRoom = gid === CFG.PLAY_GROUP_ID;
-
-if (isAdmin && (isAdminRoom || isPlayRoom)) {
-
-  // เปิดรับเดิมพัน
-  if (text === "O") {
-    db.config.open = true;
-    save(db);
-    return client.replyMessage(replyToken, {
-      type: "flex",
-      altText: "open",
-      contents: loadFlex("open")
-    });
-  }
-
-  // ปิดรับเดิมพัน
-  if (text === "X") {
-    db.config.open = false;
-    save(db);
-    return client.replyMessage(replyToken, {
-      type: "flex",
-      altText: "close",
-      contents: loadFlex("close")
-    });
-  }
-
-  // ออกผล
-  if (/^S\d{3}$/.test(text)) {
-    const result = text.slice(1);
-    const dice = result.split("");
-
-    let summary = [];
-    Object.keys(db.bets || {}).forEach(u => {
-      let total = 0;
-      db.bets[u].forEach(b => {
-        total += calcWin(b.num, result, b.amount, db.config, false);
-      });
-      db.users[u].credit += total;
-      summary.push(`${db.users[u].name} : ${total >= 0 ? "+" : ""}${total}`);
-    });
-
-    db.bets = {};
-    save(db);
-
-    await client.replyMessage(replyToken, {
-      type: "flex",
-      altText: "dice",
-      contents: loadFlex("dice", {
-        D1: `${CFG.DICE_URL}/${dice[0]}.png`,
-        D2: `${CFG.DICE_URL}/${dice[1]}.png`,
-        D3: `${CFG.DICE_URL}/${dice[2]}.png`
-      })
-    });
-
-    return client.pushMessage(CFG.PLAY_GROUP_ID, {
-      type: "flex",
-      altText: "summary",
-      contents: loadFlex("summary", { LIST: summary.join("\n") })
-    });
-  }
-}
-
-      // ===============================
-      // 👤 เช็ค MYID
-      // ===============================
-      if (text === "MYID") {
+      /* ================= GLOBAL ================= */
+      if (TEXT === "MYID") {
         return client.replyMessage(replyToken, {
           type: "text",
-          text: `👤 MY ID\nUSER ID:\n${uid}\n\nCODE:\nX${uid.slice(-5)}`
+          text:
+`👤 MY ID
+━━━━━━━━━━━━━━
+USER ID:
+${uid}
+
+CODE:
+X${uid.slice(-5)}`
         });
       }
 
-      // ===============================
-      // 🔐 ห้องแอดมินเท่านั้น
-      // ===============================
-      if (gid === db.adminRoom) {
+      if (TEXT === "SETADMINROOM") {
+        if (!gid) {
+          return client.replyMessage(replyToken, {
+            type: "text",
+            text: "❌ ใช้ได้เฉพาะในกลุ่ม"
+          });
+        }
+        db.adminRoom = gid;
+        if (!db.admins.includes(uid)) db.admins.push(uid);
+        save(db);
+        return client.replyMessage(replyToken, {
+          type: "text",
+          text: "✅ ตั้งห้องนี้เป็นห้องแอดมินเรียบร้อย"
+        });
+      }
 
-        // เพิ่ม/ลบแอดมิน
-        if (text === "#ADMIN") {
-          if (isAdmin) db.admins = db.admins.filter(a => a !== uid);
-          else db.admins.push(uid);
+      /* ================= ADMIN COMMANDS ================= */
+      const isAdminRoom = gid === db.adminRoom;
+      const isPlayRoom = gid === CFG.PLAY_GROUP_ID;
+
+      if (isAdmin && (isAdminRoom || isPlayRoom)) {
+
+        if (TEXT === "#ADMIN") {
+          if (db.admins.includes(uid))
+            db.admins = db.admins.filter(a => a !== uid);
+          else
+            db.admins.push(uid);
           save(db);
           return client.replyMessage(replyToken, {
             type: "text",
@@ -153,9 +108,9 @@ if (isAdmin && (isAdminRoom || isPlayRoom)) {
           });
         }
 
-        // เปิด / ปิด รับเดิมพัน
-        if (isAdmin && text === "O") {
-          db.config.open = true; save(db);
+        if (TEXT === "O") {
+          db.config.open = true;
+          save(db);
           return client.replyMessage(replyToken, {
             type: "flex",
             altText: "open",
@@ -163,66 +118,25 @@ if (isAdmin && (isAdminRoom || isPlayRoom)) {
           });
         }
 
-        if (isAdmin && text === "X") {
-          db.config.open = false; save(db);
+        if (TEXT === "X") {
+          db.config.open = false;
+          save(db);
           return client.replyMessage(replyToken, {
             type: "flex",
             altText: "close",
             contents: loadFlex("close")
           });
         }
-      }
 
-      // ===============================
-      // 🎮 ห้องเล่น
-      // ===============================
-      if (gid === CFG.PLAY_GROUP_ID) {
-
-        // แทง
-        if (/^\d+\/\d+$/.test(text)) {
-          if (!db.config.open) return;
-
-          const [num, amt] = text.split("/");
-          const amount = parseInt(amt, 10);
-          const cost = amount * 3;
-
-          if (db.users[uid].credit < cost) {
-            return client.replyMessage(replyToken, {
-              type: "text",
-              text: "❌ เครดิตไม่พอ"
-            });
-          }
-
-          db.users[uid].credit -= cost;
-          db.bets ??= {};
-          db.bets[uid] ??= [];
-          db.bets[uid].push({ num, amount });
-          save(db);
-
-          return client.replyMessage(replyToken, {
-            type: "flex",
-            altText: "receipt",
-            contents: loadFlex("receipt", {
-              NAME: db.users[uid].name,
-              CODE: `X${uid.slice(-5)}`,
-              NUM: num,
-              AMOUNT: amount,
-              CUT: cost,
-              BAL: db.users[uid].credit
-            })
-          });
-        }
-
-        // ออกผล
-        if (isAdmin && /^S\d{3}$/.test(text)) {
-          const result = text.slice(1);
+        if (/^S\d{3}$/.test(TEXT)) {
+          const result = TEXT.slice(1);
           const dice = result.split("");
 
           let summary = [];
-          Object.keys(db.bets || {}).forEach(u => {
+          Object.keys(db.bets).forEach(u => {
             let total = 0;
             db.bets[u].forEach(b => {
-              total += calcWin(b.num, result, b.amount, db.config, false);
+              total += calcWin(b.num, result, b.amount, db.config);
             });
             db.users[u].credit += total;
             summary.push(`${db.users[u].name} : ${total >= 0 ? "+" : ""}${total}`);
@@ -241,16 +155,52 @@ if (isAdmin && (isAdminRoom || isPlayRoom)) {
             })
           });
 
-          return client.pushMessage(gid, {
+          return client.pushMessage(CFG.PLAY_GROUP_ID, {
             type: "flex",
             altText: "summary",
             contents: loadFlex("summary", { LIST: summary.join("\n") })
           });
         }
       }
+
+      /* ================= PLAY ROOM ================= */
+      if (gid === CFG.PLAY_GROUP_ID && /^\d+\/\d+$/.test(text)) {
+        if (!db.config.open) return;
+
+        const [num, amt] = text.split("/");
+        const amount = parseInt(amt, 10);
+        const cost = amount * 3;
+
+        if (db.users[uid].credit < cost) {
+          return client.replyMessage(replyToken, {
+            type: "text",
+            text: "❌ เครดิตไม่พอ"
+          });
+        }
+
+        db.users[uid].credit -= cost;
+        db.bets[uid] ??= [];
+        db.bets[uid].push({ num, amount });
+        save(db);
+
+        return client.replyMessage(replyToken, {
+          type: "flex",
+          altText: "receipt",
+          contents: loadFlex("receipt", {
+            NAME: db.users[uid].name,
+            CODE: `X${uid.slice(-5)}`,
+            NUM: num,
+            AMOUNT: amount,
+            CUT: cost,
+            BAL: db.users[uid].credit
+          })
+        });
+      }
     }
     res.sendStatus(200);
   }
 );
 
-app.listen(process.env.PORT || 3000);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🔥 HILO BOT FINAL RUNNING");
+});
