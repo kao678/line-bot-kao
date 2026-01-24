@@ -3,6 +3,7 @@
   "bets": {},
   "admins": [],
   "config": {
-    "open": false
+    "open": false,
+    "waterLose": 1
   }
 }
