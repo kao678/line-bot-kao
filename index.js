@@ -209,36 +209,61 @@ app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req
     });
   }
 
-  // ===== RESULT =====
-  if (isAdmin && /^S\d{3}$/.test(text)) {
-    const result = text.slice(1);
-    db.config.open = false;
+// ===== RESULT =====
+if (isAdmin && /^S\d{3}$/.test(text)) {
+  const result = text.slice(1);
+  db.config.open = false;
 
-    const summary = [];
+  const summaryMap = {}; // 👈 เก็บยอดสุทธิแต่ละคน
 
-    Object.keys(db.bets).forEach(u => {
-      let total = 0;
-      db.bets[u].forEach(b => {
-        if (b.num === result) {
-          const win = b.amount * 4;
-          db.users[u].credit += win;
-          total += win - b.amount * 3;
-        } else {
-          total -= b.amount * 3;
-        }
-      });
-      summary.push({ name: db.users[u].name, total });
+  Object.keys(db.bets).forEach(u => {
+    summaryMap[u] = 0;
+
+    db.bets[u].forEach(b => {
+      if (b.num === result) {
+        const win = b.amount * 4;
+        db.users[u].credit += win;
+        summaryMap[u] += win;
+      } else {
+        const lose = b.amount * 3;
+        summaryMap[u] -= lose;
+      }
     });
+  });
 
-    saveHistory(db, result);
-    db.bets = {};
-    saveDB(db);
+  // 🔥 แปลงเป็น list สำหรับ Flex
+  const summary = Object.keys(summaryMap).map(u => ({
+    name: db.users[u].name,
+    total: summaryMap[u]
+  }));
 
-    await client.pushMessage(gid, { type: "flex", altText: "ผลออก", contents: diceFlexReal(result) });
-    await client.pushMessage(gid, { type: "flex", altText: "สรุปยอด", contents: summaryFlex(summary) });
-    await client.pushMessage(gid, { type: "flex", altText: "สถิติ", contents: historyFlex(db.history) });
-    return;
-  }
+  saveHistory(db, result);
+  db.bets = {};
+  saveDB(db);
+
+  // 🎲 ผลลูกเต๋า
+  await client.pushMessage(gid, {
+    type: "flex",
+    altText: "ผลออก",
+    contents: diceFlexReal(result)
+  });
+
+  // 📊 สรุปยอดทั้งห้อง (ที่คุณต้องการ)
+  await client.pushMessage(gid, {
+    type: "flex",
+    altText: "สรุปยอดทั้งห้อง",
+    contents: summaryFlex(summary)
+  });
+
+  // 📈 สถิติย้อนหลัง
+  await client.pushMessage(gid, {
+    type: "flex",
+    altText: "สถิติย้อนหลัง",
+    contents: historyFlex(db.history)
+  });
+
+  return;
+}
 
   // ===== C : เช็คยอดเงิน =====
 if (text === "C") {
