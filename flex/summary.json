@@ -4,8 +4,14 @@
     "type": "box",
     "layout": "vertical",
     "contents": [
-      { "type": "text", "text": "🔥 สรุปเดิมพัน ({{RESULT}})", "weight": "bold" },
-      { "type": "text", "text": "{{LIST}}", "wrap": true }
+      { "type": "text", "text": "📊 สรุปเดิมพัน", "weight": "bold", "size": "lg" },
+      { "type": "text", "text": "ผลออก {{RESULT}}", "color": "#ffcc00" },
+      { "type": "separator" },
+      {
+        "type": "box",
+        "layout": "vertical",
+        "contents": []
+      }
     ]
   }
 }
