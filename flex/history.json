@@ -1,37 +1,11 @@
 {
   "type": "bubble",
-  "size": "mega",
   "body": {
     "type": "box",
     "layout": "vertical",
-    "backgroundColor": "#000000",
     "contents": [
-      {
-        "type": "text",
-        "text": "📊 สถิติย้อนหลัง",
-        "weight": "bold",
-        "size": "xl",
-        "color": "#00e5ff",
-        "align": "center"
-      },
-      {
-        "type": "separator",
-        "margin": "md"
-      },
-      {
-        "type": "box",
-        "layout": "vertical",
-        "margin": "md",
-        "contents": [
-          {
-            "type": "text",
-            "text": "{{ROWS}}",
-            "wrap": true,
-            "color": "#ffffff",
-            "size": "sm"
-          }
-        ]
-      }
+      { "type": "text", "text": "📊 สถิติย้อนหลัง", "weight": "bold" },
+      { "type": "text", "text": "{{HISTORY}}", "wrap": true }
     ]
   }
 }
