@@ -49,6 +49,44 @@ function diceImage(n) {
   };
 }
 
+// ⭐ ADD : FLEX แสดงเครดิต (เหมือนรูป)
+function creditCardFlex(user) {
+  return {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#020617",
+      paddingAll: "16px",
+      contents: [
+        {
+          type: "text",
+          text: user.code,
+          color: "#38bdf8",
+          size: "lg",
+          weight: "bold"
+        },
+        {
+          type: "text",
+          text: `คงเหลือ ${user.credit.toLocaleString()} บ.`,
+          color: "#22c55e",
+          size: "xl",
+          weight: "bold",
+          margin: "sm"
+        },
+        {
+          type: "text",
+          text: `ID: x${user.code}`,
+          color: "#94a3b8",
+          size: "sm",
+          margin: "sm"
+        }
+      ]
+    }
+  };
+}
+
 function closeBillFlex(result, summary) {
   const totalRoom = summary.reduce((a, b) => a + b.total, 0);
 
@@ -79,7 +117,6 @@ function closeBillFlex(result, summary) {
         }
       ]
     },
-
     body: {
       type: "box",
       layout: "vertical",
@@ -126,7 +163,6 @@ function closeBillFlex(result, summary) {
         ]
       }))
     },
-
     footer: {
       type: "box",
       layout: "vertical",
@@ -183,7 +219,7 @@ app.post(
     if (!db.users[uid]) {
       db.users[uid] = {
         credit: 1000,
-        name: "ผู้เล่น",
+        name: `USER-${uid.slice(-4)}`,
         code: uid.slice(-4)
       };
     }
@@ -218,6 +254,22 @@ app.post(
       });
     }
 
+    // ⭐ ADD : C = สรุปเครดิต
+    if (text === "C" && isAdmin) {
+      const bubbles = Object.values(db.users).map(u =>
+        creditCardFlex(u)
+      );
+
+      return client.pushMessage(gid, {
+        type: "flex",
+        altText: "สรุปเครดิต",
+        contents: {
+          type: "carousel",
+          contents: bubbles
+        }
+      });
+    }
+
     // ===== BET =====
     if (/^\d+\/\d+$/.test(text)) {
       if (!db.config.open) return;
@@ -244,7 +296,7 @@ app.post(
       });
     }
 
-    // ===== RESULT / CLOSE BILL =====
+    // ===== RESULT =====
     if (isAdmin && /^S\d{3}$/.test(text)) {
       const result = text.slice(1);
       db.config.open = false;
@@ -260,8 +312,7 @@ app.post(
             db.users[uid2].credit += win;
             summaryMap[uid2] += win;
           } else {
-            const lose = b.amount * 3;
-            summaryMap[uid2] -= lose;
+            summaryMap[uid2] -= b.amount * 3;
           }
         });
       });
@@ -281,8 +332,6 @@ app.post(
         altText: "ปิดบิล",
         contents: closeBillFlex(result, summary)
       });
-
-      return;
     }
   }
 );
