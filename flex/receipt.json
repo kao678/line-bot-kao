@@ -1,13 +1,51 @@
 {
   "type": "bubble",
+  "size": "kilo",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "backgroundColor": "#0B1C2D",
+    "paddingAll": "12px",
+    "contents": [
+      {
+        "type": "text",
+        "text": "NONAME",
+        "color": "#00E5FF",
+        "weight": "bold",
+        "size": "md"
+      }
+    ]
+  },
   "body": {
     "type": "box",
     "layout": "vertical",
+    "spacing": "sm",
     "contents": [
-      { "type": "text", "text": "🎫 ใบโพย", "weight": "bold" },
-      { "type": "text", "text": "เลข {{NUM}}" },
-      { "type": "text", "text": "เดิมพัน {{AMOUNT}}" },
-      { "type": "text", "text": "เครดิตคงเหลือ {{BAL}}" }
+      {
+        "type": "text",
+        "text": "{{NAME}} ({{CODE}})",
+        "weight": "bold",
+        "size": "lg"
+      },
+      {
+        "type": "text",
+        "text": "{{NUM}} - {{AMOUNT}} ✔",
+        "color": "#0066FF",
+        "size": "md"
+      },
+      {
+        "type": "text",
+        "text": "หักล่วงหน้า {{CUT}}",
+        "color": "#FF3333",
+        "size": "md"
+      },
+      {
+        "type": "text",
+        "text": "คงเหลือ {{BAL}}",
+        "color": "#00AA66",
+        "weight": "bold",
+        "size": "lg"
+      }
     ]
   }
 }
