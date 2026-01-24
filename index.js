@@ -5,9 +5,17 @@ const fs = require("fs");
 const app = express();
 
 /* ================= CONFIG ================= */
+const LINE_TOKEN = process.env.LINE_TOKEN;
+const LINE_SECRET = process.env.LINE_SECRET;
+
+if (!LINE_TOKEN || !LINE_SECRET) {
+  console.error("❌ Missing LINE_TOKEN or LINE_SECRET");
+  process.exit(1);
+}
+
 const client = new line.Client({
-  channelAccessToken: process.env.LINE_TOKEN,
-  channelSecret: process.env.LINE_SECRET
+  channelAccessToken: LINE_TOKEN,
+  channelSecret: LINE_SECRET
 });
 
 /* ================= DATABASE ================= */
@@ -35,10 +43,14 @@ function save(db) {
 
 /* ================= FLEX ================= */
 function loadFlex(name, replace = {}) {
-  let flex = JSON.parse(fs.readFileSync(`./flex/${name}.json`, "utf8"));
+  const path = `./flex/${name}.json`;
+  if (!fs.existsSync(path)) {
+    return { type: "text", text: `❌ missing flex: ${name}` };
+  }
+  let flex = JSON.parse(fs.readFileSync(path, "utf8"));
   let txt = JSON.stringify(flex);
   Object.keys(replace).forEach(k => {
-    txt = txt.replaceAll(`{{${k}}}`, replace[k]);
+    txt = txt.replaceAll(`{{${k}}}`, String(replace[k]));
   });
   return JSON.parse(txt);
 }
@@ -47,7 +59,8 @@ function loadFlex(name, replace = {}) {
 function calcWin(num, result, amt, waterLose) {
   if (num === result) return amt * 1;
   if (num === "456" && result === "456") return amt * 25;
-  if (/^(111|222|333|444|555|666)$/.test(num) && num === result) return amt * 100;
+  if (/^(111|222|333|444|555|666)$/.test(num) && num === result)
+    return amt * 100;
   return -(amt * 3 + amt * (waterLose / 100));
 }
 
@@ -55,19 +68,19 @@ function calcWin(num, result, amt, waterLose) {
 app.post(
   "/webhook",
   line.middleware({
-    channelAccessToken: process.env.LINE_TOKEN,
-    channelSecret: process.env.LINE_SECRET
+    channelAccessToken: LINE_TOKEN,
+    channelSecret: LINE_SECRET
   }),
   async (req, res) => {
     try {
       const db = load();
-      db.history ??= [];
 
       for (const event of req.body.events) {
         if (event.type !== "message") continue;
         if (event.message.type !== "text") continue;
 
-        const text = event.message.text.trim().toUpperCase();
+        const rawText = event.message.text.trim();
+        const text = rawText.toUpperCase();
         const uid = event.source.userId;
         const gid = event.source.groupId;
         const replyToken = event.replyToken;
@@ -99,7 +112,7 @@ app.post(
           continue;
         }
 
-        /* ===== OPEN / CLOSE ===== */
+        /* ===== OPEN ===== */
         if (isAdmin && text === "O") {
           db.config.open = true;
           save(db);
@@ -111,6 +124,7 @@ app.post(
           continue;
         }
 
+        /* ===== CLOSE ===== */
         if (isAdmin && text === "X") {
           db.config.open = false;
           save(db);
@@ -159,7 +173,6 @@ app.post(
           db.users[uid].credit -= cost;
           db.bets[uid] ??= [];
           db.bets[uid].push({ num, amount });
-
           save(db);
 
           await client.replyMessage(replyToken, {
@@ -178,7 +191,6 @@ app.post(
         /* ===== RESULT ===== */
         if (isAdmin && /^S\d{3}$/.test(text)) {
           const result = text.slice(1);
-          const dice = result.split("");
           let summary = [];
 
           Object.keys(db.bets).forEach(u => {
@@ -209,13 +221,14 @@ app.post(
       }
 
       res.sendStatus(200);
-    } catch (e) {
-      console.error("WEBHOOK ERROR:", e);
+    } catch (err) {
+      console.error("WEBHOOK ERROR:", err);
       res.sendStatus(200);
     }
   }
 );
 
+/* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("🔥 HILO BOT RUNNING");
 });
