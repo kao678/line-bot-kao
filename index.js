@@ -100,20 +100,20 @@ app.post(
         }
 
         /* ===== ADMIN TOGGLE ===== */
-        if (text === "#ADMIN" ||
-        if (text.startsWith("#ADMIN")) {
-          if (isAdmin) {
-            db.admins = db.admins.filter(a => a !== uid);
-          } else {
-            db.admins.push(uid);
-          }
-          save(db);
-          await client.replyMessage(replyToken, {
-            type: "text",
-            text: "✅ อัปเดตสิทธิ์แอดมินแล้ว"
-          });
-          continue;
-        }
+if (text.replace(/\s+/g, "").startsWith("#ADMIN")) {
+  if (db.admins.includes(uid)) {
+    db.admins = db.admins.filter(a => a !== uid);
+  } else {
+    db.admins.push(uid);
+  }
+  save(db);
+
+  await client.replyMessage(replyToken, {
+    type: "text",
+    text: "✅ อัปเดตสิทธิ์แอดมินเรียบร้อย"
+  });
+  continue;
+}
 
         /* ===== OPEN ===== */
         if (isAdmin && text === "O") {
