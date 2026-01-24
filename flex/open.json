@@ -4,13 +4,7 @@
     "type": "box",
     "layout": "vertical",
     "contents": [
-      {
-        "type": "text",
-        "text": "🟢 เปิดรับเดิมพัน",
-        "weight": "bold",
-        "size": "xl",
-        "align": "center"
-      }
+      { "type": "text", "text": "🟢 เปิดรับเดิมพันแล้ว", "weight": "bold", "size": "lg" }
     ]
   }
 }
