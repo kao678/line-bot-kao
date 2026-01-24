@@ -98,7 +98,7 @@ app.post(
         }
 
         /* ===== ADMIN TOGGLE ===== */
-        if (text === "#ADMIN") {
+        if (text.startsWith("#ADMIN")) {
           if (isAdmin) {
             db.admins = db.admins.filter(a => a !== uid);
           } else {
