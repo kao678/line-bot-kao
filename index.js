@@ -261,3 +261,52 @@ app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
+function balanceFlex(name, code, credit) {
+  return {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "horizontal",
+      spacing: "md",
+      contents: [
+        {
+          type: "image",
+          url: "https://i.imgur.com/9XnQZQZ.png", // รูปโปรไฟล์ตัวอย่าง
+          size: "sm",
+          aspectRatio: "1:1",
+          aspectMode: "cover",
+          cornerRadius: "50%"
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: name,
+              weight: "bold",
+              color: "#38bdf8",
+              size: "md"
+            },
+            {
+              type: "text",
+              text: `คงเหลือ ${credit.toLocaleString()} บ.`,
+              color: "#22c55e",
+              size: "lg",
+              weight: "bold"
+            },
+            {
+              type: "text",
+              text: `ID: ${code}`,
+              color: "#94a3b8",
+              size: "sm"
+            }
+          ]
+        }
+      ],
+      backgroundColor: "#020617",
+      paddingAll: "16px",
+      cornerRadius: "12px"
+    }
+  };
+}
