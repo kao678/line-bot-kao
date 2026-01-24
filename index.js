@@ -219,7 +219,8 @@ await client.pushMessage(gid, {
   altText: "สถิติย้อนหลัง",
   contents: historyFlex(db.history)
 });
-
+return; //
+    
   // ===== C =====
   if (text === "C") {
     await client.replyMessage(replyToken, {
