@@ -203,10 +203,10 @@ app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req
     saveDB(db);
 
     await client.pushMessage(gid, {
-      type: "flex",
-      altText: "ผลออก",
-      contents: diceFlex(result)
-    });
+  type: "flex",
+  altText: "ผลออก",
+  contents: diceFlexReal(result)
+});
 
     await client.pushMessage(gid, {
       type: "flex",
