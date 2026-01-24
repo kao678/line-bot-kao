@@ -2,27 +2,11 @@
   "type": "bubble",
   "body": {
     "type": "box",
-    "layout": "vertical",
-    "spacing": "md",
+    "layout": "horizontal",
     "contents": [
-      {
-        "type": "text",
-        "text": "🎲 ผลการออก",
-        "weight": "bold",
-        "align": "center",
-        "size": "lg"
-      },
-      {
-        "type": "box",
-        "layout": "horizontal",
-        "justifyContent": "center",
-        "spacing": "sm",
-        "contents": [
-          { "type": "image", "url": "{{D1}}", "size": "sm" },
-          { "type": "image", "url": "{{D2}}", "size": "sm" },
-          { "type": "image", "url": "{{D3}}", "size": "sm" }
-        ]
-      }
+      { "type": "text", "text": "{{D1}}", "size": "xxl" },
+      { "type": "text", "text": "{{D2}}", "size": "xxl" },
+      { "type": "text", "text": "{{D3}}", "size": "xxl" }
     ]
   }
 }
