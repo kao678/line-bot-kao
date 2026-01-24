@@ -240,14 +240,21 @@ app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req
     return;
   }
 
-  // ===== C =====
-  if (text === "C") {
-    return client.replyMessage(replyToken, {
-      type: "flex",
-      altText: "สถิติย้อนหลัง",
-      contents: historyFlex(db.history)
-    });
-  }
+  // ===== C : เช็คยอดเงิน =====
+if (text === "C") {
+  const user = db.users[uid];
+
+  await client.replyMessage(replyToken, {
+    type: "flex",
+    altText: "เช็คยอดเงิน",
+    contents: balanceFlex(
+      user.name || "NONAME",
+      user.code || uid.slice(-4),
+      user.credit || 0
+    )
+  });
+  return;
+}
 
   // ===== B =====
   if (text === "B") {
