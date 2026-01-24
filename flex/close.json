@@ -1,17 +1,10 @@
 {
   "type": "bubble",
-  "hero": {
-    "type": "image",
-    "url": "https://i.imgur.com/CLOSEBET.png",
-    "size": "full",
-    "aspectMode": "cover"
-  },
   "body": {
-    "type": "text",
-    "text": "🔴 ปิดรับเดิมพัน",
-    "weight": "bold",
-    "size": "xl",
-    "align": "center",
-    "color": "#FF3B30"
+    "type": "box",
+    "layout": "vertical",
+    "contents": [
+      { "type": "text", "text": "🔴 ปิดรับเดิมพัน", "weight": "bold", "size": "lg" }
+    ]
   }
 }
