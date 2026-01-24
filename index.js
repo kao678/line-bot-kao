@@ -4,26 +4,19 @@ const fs = require("fs");
 
 const app = express();
 
-/* ====== CONFIG ====== */
-const LINE_TOKEN = process.env.LINE_TOKEN;
-const LINE_SECRET = process.env.LINE_SECRET;
-
-if (!LINE_TOKEN || !LINE_SECRET) {
+/* ================= ENV CHECK ================= */
+if (!process.env.LINE_TOKEN || !process.env.LINE_SECRET) {
   console.error("❌ Missing LINE_TOKEN or LINE_SECRET");
   process.exit(1);
 }
 
+/* ================= LINE CLIENT ================= */
 const client = new line.Client({
-  channelAccessToken: LINE_TOKEN,
-  channelSecret: LINE_SECRET
+  channelAccessToken: process.env.LINE_TOKEN,
+  channelSecret: process.env.LINE_SECRET
 });
 
-/* ===== SUPER ADMIN ===== */
-const SUPER_ADMINS = [
-  "Uab107367b6017b2b5fede655841f715c" // 👈 ใส่ USER ID ตัวเอง
-];
-
-/* ===== DATABASE ===== */
+/* ================= DATABASE ================= */
 const FILE = "./data.json";
 
 function load() {
@@ -31,8 +24,14 @@ function load() {
     return {
       users: {},
       bets: {},
-      admins: [],
-      config: { open: false, waterLose: 1 },
+      admins: {
+        super: [], // แอดมินใหญ่
+        sub: []    // แอดมินย่อย
+      },
+      config: {
+        open: false,
+        waterLose: 1
+      },
       history: []
     };
   }
@@ -43,29 +42,31 @@ function save(db) {
   fs.writeFileSync(FILE, JSON.stringify(db, null, 2));
 }
 
-/* ===== FLEX ===== */
+/* ================= FLEX ================= */
 function loadFlex(name, replace = {}) {
   let flex = JSON.parse(fs.readFileSync(`./flex/${name}.json`, "utf8"));
   let txt = JSON.stringify(flex);
-  for (let k in replace) {
+  Object.keys(replace).forEach(k => {
     txt = txt.replaceAll(`{{${k}}}`, replace[k]);
-  }
+  });
   return JSON.parse(txt);
 }
 
-/* ===== CALC ===== */
+/* ================= CALC ================= */
 function calcWin(num, result, amt, waterLose) {
   if (num === result) return amt * 1;
   if (num === "456" && result === "456") return amt * 25;
-  if (/^(111|222|333|444|555|666)$/.test(num) && num === result)
-    return amt * 100;
+  if (/^(111|222|333|444|555|666)$/.test(num) && num === result) return amt * 100;
   return -(amt * 3 + amt * (waterLose / 100));
 }
 
-/* ===== WEBHOOK ===== */
+/* ================= WEBHOOK ================= */
 app.post(
   "/webhook",
-  line.middleware({ channelAccessToken: LINE_TOKEN, channelSecret: LINE_SECRET }),
+  line.middleware({
+    channelAccessToken: process.env.LINE_TOKEN,
+    channelSecret: process.env.LINE_SECRET
+  }),
   async (req, res) => {
     try {
       const db = load();
@@ -74,51 +75,65 @@ app.post(
         if (event.type !== "message") continue;
         if (event.message.type !== "text") continue;
 
-        const text = event.message.text.trim().toUpperCase();
+        const rawText = event.message.text.trim();
+        const text = rawText.toUpperCase().replace(/＃/g, "#");
         const uid = event.source.userId;
         const gid = event.source.groupId;
         const replyToken = event.replyToken;
 
         db.users[uid] ??= { credit: 1000, block: false };
 
-        const isSuper = SUPER_ADMINS.includes(uid);
-        const isAdmin = isSuper || db.admins.includes(uid);
+        const isSuperAdmin = db.admins.super.includes(uid);
+        const isSubAdmin = db.admins.sub.includes(uid);
+        const isAdmin = isSuperAdmin || isSubAdmin;
 
         /* ===== MYID ===== */
         if (text === "MYID") {
           await client.replyMessage(replyToken, {
             type: "text",
-            text: `👤 MY ID\n${uid}\nCODE: X${uid.slice(-5)}`
+            text: `👤 MY ID\n${uid}\nCODE: X${uid.slice(-4)}`
           });
           continue;
         }
 
-        /* ===== ADD / REMOVE ADMIN (SUPER ONLY) ===== */
-        if (isSuper && text.startsWith("ADDADMIN")) {
+        /* ===== ตั้งแอดมินใหญ่ (ทำครั้งแรกครั้งเดียว) ===== */
+        if (text === "SETSUPER") {
+          if (db.admins.super.length > 0) continue;
+          db.admins.super.push(uid);
+          save(db);
+          await client.replyMessage(replyToken, {
+            type: "text",
+            text: "👑 ตั้งคุณเป็นแอดมินใหญ่เรียบร้อย"
+          });
+          continue;
+        }
+
+        /* ===== เพิ่ม / ลบ แอดมินย่อย (SUPER เท่านั้น) ===== */
+        if (isSuperAdmin && text.startsWith("ADDADMIN")) {
           const code = text.split(" ")[1];
           if (!code) continue;
 
           const target = Object.keys(db.users).find(
-            u => `X${u.slice(-5)}` === code
+            u => `X${u.slice(-4)}` === code
           );
-          if (target && !db.admins.includes(target)) {
-            db.admins.push(target);
+          if (target && !db.admins.sub.includes(target)) {
+            db.admins.sub.push(target);
             save(db);
           }
 
           await client.replyMessage(replyToken, {
             type: "text",
-            text: "✅ เพิ่มแอดมินย่อยเรียบร้อย"
+            text: "✅ เพิ่มแอดมินย่อยแล้ว"
           });
           continue;
         }
 
-        if (isSuper && text.startsWith("DELADMIN")) {
+        if (isSuperAdmin && text.startsWith("DELADMIN")) {
           const code = text.split(" ")[1];
           const target = Object.keys(db.users).find(
-            u => `X${u.slice(-5)}` === code
+            u => `X${u.slice(-4)}` === code
           );
-          db.admins = db.admins.filter(a => a !== target);
+          db.admins.sub = db.admins.sub.filter(a => a !== target);
           save(db);
 
           await client.replyMessage(replyToken, {
@@ -152,12 +167,20 @@ app.post(
         }
 
         /* ===== BET ===== */
-        if (/^\d+\/\d+$/.test(text) && db.config.open) {
+        if (/^\d+\/\d+$/.test(text)) {
+          if (!db.config.open || db.users[uid].block) continue;
+
           const [num, amt] = text.split("/");
-          const amount = parseInt(amt);
+          const amount = parseInt(amt, 10);
           const cost = amount * 3 + amount * (db.config.waterLose / 100);
 
-          if (db.users[uid].credit < cost) continue;
+          if (db.users[uid].credit < cost) {
+            await client.replyMessage(replyToken, {
+              type: "text",
+              text: "❌ เครดิตไม่พอ"
+            });
+            continue;
+          }
 
           db.users[uid].credit -= cost;
           db.bets[uid] ??= [];
@@ -166,13 +189,61 @@ app.post(
 
           await client.replyMessage(replyToken, {
             type: "flex",
-            altText: "receipt",
+            altText: "ใบรับโพย",
             contents: loadFlex("receipt", {
+              NAME: "NONAME",
+              CODE: "X" + uid.slice(-4),
               NUM: num,
-              AMOUNT: amount,
-              CUT: cost,
-              BAL: db.users[uid].credit
+              AMOUNT: amount.toLocaleString(),
+              CUT: cost.toLocaleString(),
+              BAL: db.users[uid].credit.toLocaleString()
             })
+          });
+          continue;
+        }
+
+        /* ===== C : CHECK CREDIT & BETS (FLEX) ===== */
+        if (text === "C") {
+          const myBets = db.bets[uid] || [];
+
+          let betListText = "ยังไม่มีการเดิมพัน";
+          if (myBets.length > 0) {
+            betListText = myBets
+              .map(b => `• ${b.num} / ${b.amount.toLocaleString()}`)
+              .join("\n");
+          }
+
+          await client.replyMessage(replyToken, {
+            type: "flex",
+            altText: "เช็คยอด",
+            contents: loadFlex("check", {
+              BET_LIST: betListText,
+              BAL: db.users[uid].credit.toLocaleString()
+            })
+          });
+          continue;
+        }
+
+        /* ===== DL : DELETE ALL MY BETS ===== */
+        if (text === "DL") {
+          const myBets = db.bets[uid] || [];
+          if (myBets.length === 0) continue;
+
+          let refund = 0;
+          myBets.forEach(b => {
+            refund += b.amount * 3 + b.amount * (db.config.waterLose / 100);
+          });
+
+          db.users[uid].credit += refund;
+          delete db.bets[uid];
+          save(db);
+
+          await client.replyMessage(replyToken, {
+            type: "text",
+            text:
+              `♻️ ยกเลิกโพยเรียบร้อย\n` +
+              `คืนเครดิต ${refund.toLocaleString()}\n` +
+              `💳 คงเหลือ ${db.users[uid].credit.toLocaleString()}`
           });
           continue;
         }
@@ -182,15 +253,16 @@ app.post(
           const result = text.slice(1);
           let summary = [];
 
-          for (let u in db.bets) {
+          Object.keys(db.bets).forEach(u => {
             let total = 0;
-            for (let b of db.bets[u]) {
+            db.bets[u].forEach(b => {
               total += calcWin(b.num, result, b.amount, db.config.waterLose);
-            }
+            });
             db.users[u].credit += total;
-            summary.push(`X${u.slice(-5)} : ${total}`);
-          }
+            summary.push(`X${u.slice(-4)} : ${total >= 0 ? "+" : ""}${total}`);
+          });
 
+          db.history.push({ result, summary, time: Date.now() });
           db.bets = {};
           save(db);
 
@@ -209,13 +281,13 @@ app.post(
       }
 
       res.sendStatus(200);
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
+      console.error("WEBHOOK ERROR:", e);
       res.sendStatus(200);
     }
   }
 );
 
-app.listen(process.env.PORT || 3000, () =>
-  console.log("🔥 HILO BOT RUNNING")
-);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🔥 HILO BOT RUNNING");
+});
