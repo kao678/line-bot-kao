@@ -207,15 +207,6 @@ app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req
   altText: "ผลออก",
   contents: diceFlexReal(result)
 });
-saveHistory(db, result);
-db.bets = {};
-saveDB(db);
-
-await client.pushMessage(gid, {
-  type: "flex",
-  altText: "ผลออก",
-  contents: diceFlexReal(result)
-});
 
 await client.pushMessage(gid, {
   type: "flex",
