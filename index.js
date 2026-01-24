@@ -61,25 +61,71 @@ app.post(
       if (event.message.type !== "text") continue;
       const text = event.message.text.trim();
 
-      // ===============================
-      // ✅ ตั้งห้องแอดมิน
-      // ===============================
-      if (text === "SETADMINROOM") {
-        if (!gid) {
-          return client.replyMessage(replyToken, {
-            type: "text",
-            text: "❌ คำสั่งนี้ใช้ได้เฉพาะในกลุ่ม"
-          });
-        }
-        db.adminRoom = gid;
-        if (!db.admins.includes(uid)) db.admins.push(uid);
-        save(db);
+// ===============================
+// 🔐 คำสั่งแอดมิน (ห้องแอดมิน + ห้องเล่น)
+// ===============================
+const isAdminRoom = gid === db.adminRoom;
+const isPlayRoom = gid === CFG.PLAY_GROUP_ID;
 
-        return client.replyMessage(replyToken, {
-          type: "text",
-          text: "✅ ตั้งห้องนี้เป็นห้องแอดมินเรียบร้อย"
-        });
-      }
+if (isAdmin && (isAdminRoom || isPlayRoom)) {
+
+  // เปิดรับเดิมพัน
+  if (text === "O") {
+    db.config.open = true;
+    save(db);
+    return client.replyMessage(replyToken, {
+      type: "flex",
+      altText: "open",
+      contents: loadFlex("open")
+    });
+  }
+
+  // ปิดรับเดิมพัน
+  if (text === "X") {
+    db.config.open = false;
+    save(db);
+    return client.replyMessage(replyToken, {
+      type: "flex",
+      altText: "close",
+      contents: loadFlex("close")
+    });
+  }
+
+  // ออกผล
+  if (/^S\d{3}$/.test(text)) {
+    const result = text.slice(1);
+    const dice = result.split("");
+
+    let summary = [];
+    Object.keys(db.bets || {}).forEach(u => {
+      let total = 0;
+      db.bets[u].forEach(b => {
+        total += calcWin(b.num, result, b.amount, db.config, false);
+      });
+      db.users[u].credit += total;
+      summary.push(`${db.users[u].name} : ${total >= 0 ? "+" : ""}${total}`);
+    });
+
+    db.bets = {};
+    save(db);
+
+    await client.replyMessage(replyToken, {
+      type: "flex",
+      altText: "dice",
+      contents: loadFlex("dice", {
+        D1: `${CFG.DICE_URL}/${dice[0]}.png`,
+        D2: `${CFG.DICE_URL}/${dice[1]}.png`,
+        D3: `${CFG.DICE_URL}/${dice[2]}.png`
+      })
+    });
+
+    return client.pushMessage(CFG.PLAY_GROUP_ID, {
+      type: "flex",
+      altText: "summary",
+      contents: loadFlex("summary", { LIST: summary.join("\n") })
+    });
+  }
+}
 
       // ===============================
       // 👤 เช็ค MYID
