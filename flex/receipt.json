@@ -4,10 +4,12 @@
     "type": "box",
     "layout": "vertical",
     "contents": [
-      { "type": "text", "text": "{{NAME}} ({{CODE}})", "weight": "bold" },
-      { "type": "text", "text": "{{BET}} ✔", "color": "#2196F3" },
-      { "type": "text", "text": "หักล่วงหน้า {{CUT}}", "color": "#F44336" },
-      { "type": "text", "text": "คงเหลือ {{BAL}}", "color": "#4CAF50", "weight": "bold" }
+      { "type": "text", "text": "📄 ใบรับโพย", "weight": "bold", "size": "lg" },
+      { "type": "separator" },
+      { "type": "text", "text": "เลข: {{NUM}}" },
+      { "type": "text", "text": "เดิมพัน: {{AMOUNT}}" },
+      { "type": "text", "text": "หักล่วงหน้า: {{CUT}}", "color": "#ff0000" },
+      { "type": "text", "text": "คงเหลือ: {{BAL}}", "color": "#00aa00", "weight": "bold" }
     ]
   }
 }
