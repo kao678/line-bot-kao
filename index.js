@@ -220,15 +220,6 @@ await client.pushMessage(gid, {
   contents: historyFlex(db.history)
 });
 
-return;
-    await client.pushMessage(gid, {
-      type: "flex",
-      altText: "สถิติย้อนหลัง",
-      contents: historyFlex(db.history)
-    });
-    return;
-  }
-
   // ===== C =====
   if (text === "C") {
     await client.replyMessage(replyToken, {
