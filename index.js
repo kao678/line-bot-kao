@@ -80,7 +80,9 @@ app.post(
         if (event.message.type !== "text") continue;
 
         const rawText = event.message.text.trim();
-        const text = rawText.toUpperCase();
+const text = rawText
+  .toUpperCase()
+  .replace(/＃/g, "#"); // แก้ # เพี้ยนจาก LINE
         const uid = event.source.userId;
         const gid = event.source.groupId;
         const replyToken = event.replyToken;
