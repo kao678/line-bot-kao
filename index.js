@@ -106,37 +106,45 @@ function historyFlex(history) {
 }
 
 function summaryFlex(list) {
-  return {
-    type: "bubble",
-    header: {
-      type: "box",
-      layout: "vertical",
-      contents: [
-        { type: "text", text: "📊 สรุปยอดเดิมพัน", align: "center", color: "#fff", weight: "bold" }
-      ],
-      backgroundColor: "#111827"
-    },
-    body: {
-      type: "box",
-      layout: "vertical",
-      contents: list.map(i => ({
-        type: "box",
-        layout: "horizontal",
-        contents: [
-          { type: "text", text: i.name, flex: 3, size: "sm" },
-          {
-            type: "text",
-            text: (i.total > 0 ? "+" : "") + i.total,
-            flex: 2,
-            align: "end",
-            weight: "bold",
-            color: i.total >= 0 ? "#16a34a" : "#dc2626"
-          }
-        ]
-      }))
-    }
-  };
-}
+  if (isAdmin && /^S\d{3}$/.test(text)) {
+  const result = text.slice(1);
+  db.config.open = false;
+
+  const summaryMap = {};
+
+  Object.keys(db.bets).forEach(uid => {
+    summaryMap[uid] = 0;
+
+    db.bets[uid].forEach(b => {
+      if (b.num === result) {
+        const win = b.amount * 4;
+        db.users[uid].credit += win;
+        summaryMap[uid] += win;
+      } else {
+        const lose = b.amount * 3;
+        summaryMap[uid] -= lose;
+      }
+    });
+  });
+
+  const summary = Object.keys(summaryMap).map(uid => ({
+    name: db.users[uid].name,
+    total: summaryMap[uid],
+    credit: db.users[uid].credit
+  }));
+
+  saveHistory(db, result);
+  db.bets = {};
+  saveDB(db);
+
+  await client.pushMessage(gid, {
+    type: "flex",
+    altText: "ปิดบิล",
+    contents: closeBillFlex(result, summary)
+  });
+
+  return;
+  }
 
 // ================= HISTORY =================
 function saveHistory(db, result) {
