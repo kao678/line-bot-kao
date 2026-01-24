@@ -230,3 +230,53 @@ app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
+function diceImage(n) {
+  return {
+    type: "image",
+    url: `https://raw.githubusercontent.com/kao678/hilo-dice/main/${n}.png`,
+    size: "sm",
+    aspectMode: "fit"
+  };
+}
+
+function diceFlexReal(result) {
+  const dice = result.split("");
+
+  return {
+    type: "bubble",
+    hero: {
+      type: "box",
+      layout: "horizontal",
+      spacing: "md",
+      contents: [
+        diceImage(dice[0]),
+        diceImage(dice[1]),
+        diceImage(dice[2])
+      ],
+      justifyContent: "center",
+      alignItems: "center",
+      paddingAll: "20px"
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        {
+          type: "text",
+          text: "🎲 ผลออก",
+          weight: "bold",
+          align: "center",
+          size: "lg"
+        },
+        {
+          type: "text",
+          text: result,
+          align: "center",
+          size: "xl",
+          weight: "bold",
+          color: "#2563eb"
+        }
+      ]
+    }
+  };
+}
