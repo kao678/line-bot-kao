@@ -1,0 +1,50 @@
+{
+  "type": "bubble",
+  "size": "kilo",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "backgroundColor": "#0B1C2D",
+    "paddingAll": "12px",
+    "contents": [
+      {
+        "type": "text",
+        "text": "📄 รายการเดิมพันของคุณ",
+        "color": "#00E5FF",
+        "weight": "bold",
+        "size": "md"
+      }
+    ]
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "text",
+        "text": "{{BET_LIST}}",
+        "wrap": true,
+        "size": "md"
+      },
+      {
+        "type": "separator",
+        "margin": "md"
+      },
+      {
+        "type": "text",
+        "text": "💳 เครดิตคงเหลือ",
+        "weight": "bold",
+        "size": "md",
+        "margin": "md"
+      },
+      {
+        "type": "text",
+        "text": "{{BAL}} บาท",
+        "size": "xl",
+        "weight": "bold",
+        "color": "#00AA66"
+      }
+    ]
+  }
+}
