@@ -207,7 +207,29 @@ app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req
   altText: "ผลออก",
   contents: diceFlexReal(result)
 });
+saveHistory(db, result);
+db.bets = {};
+saveDB(db);
 
+await client.pushMessage(gid, {
+  type: "flex",
+  altText: "ผลออก",
+  contents: diceFlexReal(result)
+});
+
+await client.pushMessage(gid, {
+  type: "flex",
+  altText: "สรุปยอดเดิมพัน",
+  contents: summaryFlex(summary)
+});
+
+await client.pushMessage(gid, {
+  type: "flex",
+  altText: "สถิติย้อนหลัง",
+  contents: historyFlex(db.history)
+});
+
+return;
     await client.pushMessage(gid, {
       type: "flex",
       altText: "สถิติย้อนหลัง",
