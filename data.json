@@ -1,11 +1,10 @@
-"history": [
-  {
-    "round": 12,
-    "result": "345",
-    "sum": 12,
-    "players": [
-      { "name": "pu", "diff": 132, "balance": 4650 },
-      { "name": "อัญชัน", "diff": -450, "balance": 167 }
-    ]
-  }
-]
+{
+  "users": {},
+  "bets": {},
+  "admins": [],
+  "config": {
+    "open": false,
+    "waterLose": 1
+  },
+  "history": []
+}
