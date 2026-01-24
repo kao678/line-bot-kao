@@ -1,4 +1,4 @@
-// ================== BASIC SETUP ==================
+// ================= BASIC SETUP =================
 const express = require("express");
 const line = require("@line/bot-sdk");
 const fs = require("fs");
@@ -6,7 +6,7 @@ const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ================== ENV ==================
+// ================= ENV =================
 const LINE_TOKEN = process.env.LINE_TOKEN;
 const LINE_SECRET = process.env.LINE_SECRET;
 
@@ -19,7 +19,7 @@ const client = new line.Client({
   channelAccessToken: LINE_TOKEN
 });
 
-// ================== DATABASE ==================
+// ================= DATABASE =================
 const DB_FILE = "./data.json";
 
 function loadDB() {
@@ -28,6 +28,7 @@ function loadDB() {
       users: {},
       admins: [],
       bets: {},
+      history: [],
       config: { open: false }
     };
   }
@@ -38,158 +39,194 @@ function saveDB(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 
-// ================== FLEX LOADER ==================
-function loadFlex(name, vars = {}) {
-  let json = JSON.parse(fs.readFileSync(`./flex/${name}.json`, "utf8"));
-  let str = JSON.stringify(json);
-  Object.keys(vars).forEach(k => {
-    str = str.replaceAll(`{{${k}}}`, vars[k]);
-  });
-  return JSON.parse(str);
+// ================= FLEX HELPERS =================
+function receiptFlex(name, code, num, amt, cut, bal) {
+  return {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        { type: "text", text: `${name} (${code})`, weight: "bold" },
+        { type: "text", text: `${num} - ${amt} ✅`, color: "#2563eb" },
+        { type: "text", text: `หักล่วงหน้า ${cut}`, color: "#dc2626" },
+        { type: "text", text: `คงเหลือ ${bal}`, color: "#16a34a", weight: "bold" }
+      ]
+    }
+  };
 }
 
-// ================== WEBHOOK ==================
-app.post(
-  "/webhook",
-  line.middleware({ channelSecret: LINE_SECRET }),
-  async (req, res) => {
-    const db = loadDB();
-
-    for (const event of req.body.events) {
-      if (event.type !== "message") continue;
-      if (event.message.type !== "text") continue;
-
-      const rawText = event.message.text.trim();
-      const text = rawText.toUpperCase();
-
-      const uid = event.source.userId;
-      const gid = event.source.groupId;
-      const replyToken = event.replyToken;
-
-      db.users[uid] ??= { credit: 1000 };
-      const isAdmin = db.admins.includes(uid);
-
-      // ===== MYID =====
-      if (text === "MYID") {
-        await client.replyMessage(replyToken, {
-          type: "text",
-          text: `MY ID\n${uid}\nCODE: X${uid.slice(-4)}`
-        });
-        continue;
-      }
-
-      // ===== ADMIN =====
-      if (text === "#ADMIN") {
-        if (!isAdmin) db.admins.push(uid);
-        saveDB(db);
-        await client.replyMessage(replyToken, {
-          type: "text",
-          text: "✅ อัปเดตสิทธิ์แอดมินเรียบร้อย"
-        });
-        continue;
-      }
-
-      // ===== OPEN =====
-      if (isAdmin && text === "O") {
-        db.config.open = true;
-        saveDB(db);
-        await client.replyMessage(replyToken, {
-          type: "text",
-          text: "🟢 เปิดรับเดิมพันแล้ว"
-        });
-        continue;
-      }
-
-      // ===== CLOSE =====
-      if (isAdmin && text === "X") {
-        db.config.open = false;
-        saveDB(db);
-        await client.replyMessage(replyToken, {
-          type: "text",
-          text: "🔴 ปิดรับเดิมพันแล้ว"
-        });
-        continue;
-      }
-
-      // ===== BET 1/100 =====
-      if (/^\d+\/\d+$/.test(text)) {
-        if (!db.config.open) continue;
-
-        const [num, amt] = text.split("/");
-        const amount = parseInt(amt);
-        const cut = amount * 3;
-
-        if (db.users[uid].credit < cut) {
-          await client.replyMessage(replyToken, {
-            type: "text",
-            text: "❌ เครดิตไม่พอ"
-          });
-          continue;
+function diceFlex(result) {
+  return {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        { type: "text", text: `🎲 ผลออก ${result}`, weight: "bold", size: "lg" },
+        {
+          type: "box",
+          layout: "horizontal",
+          contents: result.split("").map(n => ({
+            type: "image",
+            url: `https://raw.githubusercontent.com/kao678/hilo-dice/main/${n}.png`,
+            size: "sm"
+          }))
         }
+      ]
+    }
+  };
+}
 
-        db.users[uid].credit -= cut;
-        db.bets[uid] ??= [];
-        db.bets[uid].push({ num, amount });
-        saveDB(db);
+function historyFlex(history) {
+  return {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      contents: [
+        { type: "text", text: "📊 สถิติย้อนหลัง", weight: "bold", size: "lg" },
+        ...history.slice(-10).reverse().map((h, i) => ({
+          type: "text",
+          text: `${i + 1}. ${h.result} → ${h.sum}`,
+          color: h.sum >= 11 ? "#16a34a" : "#dc2626"
+        }))
+      ]
+    }
+  };
+}
 
-        await client.replyMessage(replyToken, {
-          type: "flex",
-          altText: "ใบรับโพย",
-          contents: loadFlex("receipt", {
-            NUM: num,
-            AMOUNT: amount.toLocaleString(),
-            CUT: cut.toLocaleString(),
-            BAL: db.users[uid].credit.toLocaleString()
-          })
-        });
-        continue;
-      }
+// ================= HISTORY =================
+function saveHistory(db, result) {
+  const sum = result.split("").reduce((a, b) => a + Number(b), 0);
+  db.history.push({
+    result,
+    sum,
+    time: new Date().toLocaleString("th-TH")
+  });
+  if (db.history.length > 20) db.history.shift();
+}
 
-      // ===== RESULT S123 =====
-      if (isAdmin && /^S\d{3}$/.test(text)) {
-        const result = text.slice(1);
-        db.config.open = false;
+// ================= WEBHOOK =================
+app.post("/webhook", line.middleware({ channelSecret: LINE_SECRET }), async (req, res) => {
+  res.sendStatus(200);
 
-        let list = [];
-        let house = 0;
+  const event = req.body.events[0];
+  if (!event || event.type !== "message") return;
 
-        Object.keys(db.bets).forEach(u => {
-          let total = 0;
-          db.bets[u].forEach(b => {
-            if (b.num === result) {
-              total += b.amount * 1;
-            } else {
-              total -= b.amount * 3;
-            }
-          });
-          db.users[u].credit += Math.max(0, total);
-          house -= total;
+  const text = event.message.text.trim();
+  const uid = event.source.userId;
+  const gid = event.source.groupId;
+  const replyToken = event.replyToken;
 
-          list.push({
-            name: `X${u.slice(-4)}`,
-            text: `${b.num} - ${b.amount.toLocaleString()}`,
-            result: total
-          });
-        });
+  const db = loadDB();
 
-        db.bets = {};
-        saveDB(db);
+  if (!db.users[uid]) {
+    db.users[uid] = { credit: 1000, name: "NONAME", code: uid.slice(-4) };
+  }
 
-        await client.pushMessage(gid, {
-          type: "flex",
-          altText: "สรุปเดิมพัน",
-          contents: loadFlex("summary", {
-            RESULT: result,
-            LIST: JSON.stringify(list)
-          })
-        });
+  const isAdmin = db.admins.includes(uid);
 
-        continue;
-      }
+  // ===== ADMIN =====
+  if (text === "#ADMIN") {
+    if (!db.admins.includes(uid)) db.admins.push(uid);
+    saveDB(db);
+    await client.replyMessage(replyToken, { type: "text", text: "✅ อัปเดตสิทธิ์แอดมินเรียบร้อย" });
+    return;
+  }
+
+  if (text === "O" && isAdmin) {
+    db.config.open = true;
+    saveDB(db);
+    await client.replyMessage(replyToken, { type: "text", text: "🟢 เปิดรับเดิมพันแล้ว" });
+    return;
+  }
+
+  if (text === "X" && isAdmin) {
+    db.config.open = false;
+    saveDB(db);
+    await client.replyMessage(replyToken, { type: "text", text: "🔴 ปิดรับเดิมพันแล้ว" });
+    return;
+  }
+
+  // ===== BET =====
+  if (/^\d+\/\d+$/.test(text)) {
+    if (!db.config.open) return;
+
+    const [num, amt] = text.split("/");
+    const amount = parseInt(amt);
+    const cut = amount * 3;
+
+    if (db.users[uid].credit < cut) {
+      await client.replyMessage(replyToken, { type: "text", text: "❌ เครดิตไม่พอ" });
+      return;
     }
 
-    res.sendStatus(200);
-  }
-);
+    db.users[uid].credit -= cut;
+    db.bets[uid] ??= [];
+    db.bets[uid].push({ num, amount });
 
-app.listen(PORT, () => console.log("🚀 Bot running on", PORT));
+    saveDB(db);
+
+    await client.replyMessage(replyToken, {
+      type: "flex",
+      altText: "ใบรับโพย",
+      contents: receiptFlex(
+        db.users[uid].name,
+        db.users[uid].code,
+        num,
+        amount,
+        cut,
+        db.users[uid].credit
+      )
+    });
+    return;
+  }
+
+  // ===== RESULT =====
+  if (isAdmin && /^S\d{3}$/.test(text)) {
+    const result = text.slice(1);
+    db.config.open = false;
+
+    Object.keys(db.bets).forEach(u => {
+      db.bets[u].forEach(b => {
+        if (b.num === result) {
+          db.users[u].credit += b.amount;
+        } else {
+          db.users[u].credit -= b.amount * 3;
+        }
+      });
+    });
+
+    saveHistory(db, result);
+    db.bets = {};
+    saveDB(db);
+
+    await client.pushMessage(gid, {
+      type: "flex",
+      altText: "ผลออก",
+      contents: diceFlex(result)
+    });
+
+    await client.pushMessage(gid, {
+      type: "flex",
+      altText: "สถิติย้อนหลัง",
+      contents: historyFlex(db.history)
+    });
+    return;
+  }
+
+  // ===== C =====
+  if (text === "C") {
+    await client.replyMessage(replyToken, {
+      type: "flex",
+      altText: "สถิติย้อนหลัง",
+      contents: historyFlex(db.history || [])
+    });
+    return;
+  }
+});
+
+app.listen(PORT, () => {
+  console.log("🚀 Server running on port", PORT);
+});
