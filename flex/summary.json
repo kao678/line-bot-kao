@@ -4,17 +4,8 @@
     "type": "box",
     "layout": "vertical",
     "contents": [
-      {
-        "type": "text",
-        "text": "📊 สรุปยอดรอบนี้",
-        "weight": "bold",
-        "size": "lg"
-      },
-      {
-        "type": "text",
-        "text": "{{LIST}}",
-        "wrap": true
-      }
+      { "type": "text", "text": "🔥 สรุปเดิมพัน ({{RESULT}})", "weight": "bold" },
+      { "type": "text", "text": "{{LIST}}", "wrap": true }
     ]
   }
 }
